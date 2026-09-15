@@ -29,3 +29,17 @@ App em português para comparar o conteúdo real da geladeira com o estoque idea
 - Erros do serviço de IA (créditos, limite, foto ilegível) mostrados como mensagem clara na tela, preservando a foto enviada.
 - Visual: tema claro com verde-menta/gelo, tipografia arredondada, cards com cantos suaves — nada de gradiente roxo genérico.
 - Título e descrição próprios da página para compartilhamento e busca.
+
+## Novidades pedidas
+
+**4. Medidor de abastecimento**
+- Anel/gauge grande no topo do relatório com a porcentagem da geladeira abastecida, calculada como soma das quantidades detectadas dividida pela soma das quantidades ideais (cada item limitado a 100%).
+- Cores por faixa: vermelho abaixo de 40%, âmbar até 75%, verde acima disso, com animação suave ao carregar.
+- Barras individuais por item no comparativo, mostrando quanto falta de cada um.
+
+**5. Preços perto de você**
+- Botão "Usar minha localização" pede permissão ao navegador; se o usuário recusar, ele pode digitar a cidade ou o CEP.
+- Mostra mercados próximos (nome, endereço, distância, avaliação) usando o conector do Google Maps, que precisa ser conectado uma vez — vou abrir o cartão de conexão no momento certo.
+- Para cada item faltante, uma estimativa de preço em reais pela IA, considerando a região detectada, marcada claramente como estimativa.
+- Total estimado da lista de compras, atualizado conforme o usuário marca ou desmarca itens; opção de comparar o total entre os mercados próximos listados.
+- Sem localização disponível, a lista continua funcionando com preços médios nacionais.
