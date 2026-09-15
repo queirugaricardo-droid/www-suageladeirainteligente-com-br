@@ -25,7 +25,7 @@ export type ItemDetectado = {
   nome: string;
   quantidade: number;
   unidade: string;
-  confianca?: number;
+  confianca?: number | undefined;
 };
 
 export type LinhaRelatorio = {
