@@ -46,8 +46,8 @@ export type Relatorio = {
 export type Loja = {
   nome: string;
   endereco: string;
-  distanciaKm?: number;
-  nota?: number;
+  distanciaKm?: number | undefined;
+  nota?: number | undefined;
 };
 
 export type PrecoEstimado = {
