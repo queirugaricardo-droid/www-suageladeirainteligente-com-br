@@ -82,8 +82,7 @@ export function gerarRelatorio(ideal: ItemIdeal[], detectado: ItemDetectado[]): 
 
   const extras = detectado.filter((_, i) => !usados.has(i));
   const abastecimento = linhas.length
-    ? linhas.reduce((soma, l) => soma + l.percentual * l.item.quantidade, 0) /
-      linhas.reduce((soma, l) => soma + l.item.quantidade, 0)
+    ? linhas.reduce((soma, l) => soma + l.percentual, 0) / linhas.length
     : 0;
 
   return {
