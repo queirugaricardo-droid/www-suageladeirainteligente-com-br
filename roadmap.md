@@ -7,3 +7,4 @@
 - [x] Medidor visual de % de abastecimento da geladeira
 - [x] Estimativa de preços por região e total da lista
 - [ ] Mercados próximos por geolocalização (depende de conectar o Google Maps)
+- [x] PWA: manifesto, ícones (192/512/maskable/apple-touch) e meta tags de instalação (instalável na tela inicial; sem modo offline por enquanto)
