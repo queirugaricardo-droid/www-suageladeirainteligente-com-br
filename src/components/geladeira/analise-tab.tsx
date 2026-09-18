@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -12,6 +12,10 @@ import type { ItemIdeal, Relatorio } from "@/lib/fridge-types";
 type Props = {
   estoque: ItemIdeal[];
   aoConcluir: (relatorio: Relatorio) => void;
+};
+
+export type AnaliseTabHandle = {
+  abrirCamera: () => void;
 };
 
 function comprimir(arquivo: File): Promise<string> {
@@ -38,13 +42,20 @@ function comprimir(arquivo: File): Promise<string> {
   });
 }
 
-export function AnaliseTab({ estoque, aoConcluir }: Props) {
+export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTab(
+  { estoque, aoConcluir },
+  ref,
+) {
   const [foto, setFoto] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const inputCamera = useRef<HTMLInputElement>(null);
   const inputArquivo = useRef<HTMLInputElement>(null);
   const analisar = useServerFn(analisarFoto);
+
+  useImperativeHandle(ref, () => ({
+    abrirCamera: () => inputCamera.current?.click(),
+  }));
 
   const escolher = async (arquivo?: File) => {
     if (!arquivo) return;
@@ -160,4 +171,4 @@ export function AnaliseTab({ estoque, aoConcluir }: Props) {
       </CardContent>
     </Card>
   );
-}
+});

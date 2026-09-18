@@ -8,3 +8,4 @@
 - [x] Estimativa de preços por região e total da lista
 - [ ] Mercados próximos por geolocalização (depende de conectar o Google Maps)
 - [x] PWA: manifesto, ícones (192/512/maskable/apple-touch) e meta tags de instalação (instalável na tela inicial; sem modo offline por enquanto)
+- [x] Redesenhar a página inicial com foco em foto, exemplo prático, três passos e destaque da IA
