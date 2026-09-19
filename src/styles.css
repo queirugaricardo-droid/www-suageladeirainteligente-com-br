@@ -1,8 +1,13 @@
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
+@import "@fontsource/noto-color-emoji";
 
 @custom-variant dark (&:is(.dark *));
+
+@utility font-emoji {
+  font-family: "Noto Color Emoji";
+}
 
 /*
  * Design system definition.
