@@ -90,7 +90,27 @@ export function gerarRelatorio(ideal: ItemIdeal[], detectado: ItemDetectado[]): 
     linhas,
     extras,
     abastecimento: Math.round(abastecimento * 100),
+    detectados: detectado,
   };
+}
+
+export function emojiDoAlimento(nome: string, sugerido?: string) {
+  if (sugerido?.trim()) return sugerido.trim();
+  const n = normalizar(nome);
+  const mapa: Array<[string, string[]]> = [
+    ["🥚", ["ovo"]], ["🥛", ["leite"]], ["🧀", ["queijo", "mussarela"]],
+    ["🍗", ["frango"]], ["🥩", ["carne", "bife", "file"]], ["🐟", ["peixe"]],
+    ["🍅", ["tomate"]], ["🥑", ["abacate"]], ["🥬", ["alface", "couve", "verdura"]],
+    ["🥕", ["cenoura"]], ["🥦", ["brocolis"]], ["🥒", ["pepino"]],
+    ["🍎", ["maca"]], ["🍌", ["banana"]], ["🍊", ["laranja"]],
+    ["🍓", ["morango"]], ["🍇", ["uva"]], ["🍋", ["limao"]],
+    ["🧅", ["cebola"]], ["🥔", ["batata"]], ["🧈", ["manteiga", "margarina"]],
+    ["🥓", ["bacon", "presunto"]], ["🌭", ["linguica", "salsicha"]],
+    ["🧃", ["suco"]], ["🥤", ["refrigerante"]], ["💧", ["agua"]],
+    ["🍺", ["cerveja"]], ["🍷", ["vinho"]], ["🫙", ["molho", "geleia", "maionese", "mostarda", "ketchup"]],
+    ["🍦", ["sorvete"]], ["🍕", ["pizza"]], ["🥣", ["iogurte", "requeijao", "creme"]],
+  ];
+  return mapa.find(([, palavras]) => palavras.some((p) => n.includes(p)))?.[0] ?? "🍽️";
 }
 
 export function categoriaPalpite(nome: string): Categoria {

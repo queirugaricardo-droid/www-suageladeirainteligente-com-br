@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { CATEGORIAS, UNIDADES } from "@/lib/fridge-types";
 import type { Categoria, ItemIdeal, Unidade } from "@/lib/fridge-types";
-import { categoriaPalpite } from "@/lib/fridge-logic";
+import { categoriaPalpite, emojiDoAlimento } from "@/lib/fridge-logic";
 
 type Props = {
   estoque: ItemIdeal[];
@@ -130,6 +130,9 @@ export function EstoqueTab({ estoque, adicionar, atualizar, remover }: Props) {
                     key={item.id}
                     className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2"
                   >
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-2xl" aria-hidden="true">
+                      {emojiDoAlimento(item.nome, item.emoji)}
+                    </span>
                     <Input
                       className="h-9 flex-1 min-w-40"
                       value={item.nome}

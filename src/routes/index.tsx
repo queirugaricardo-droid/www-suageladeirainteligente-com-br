@@ -60,12 +60,12 @@ function Index() {
 
   const verExemplo = () => {
     const exemplo: ItemDetectado[] = [
-      { nome: "Leite", quantidade: 0.7, unidade: "L", confianca: 0.98 },
-      { nome: "Ovos", quantidade: 6, unidade: "un", confianca: 0.97 },
-      { nome: "Tomate", quantidade: 4, unidade: "un", confianca: 0.95 },
-      { nome: "Alface", quantidade: 1, unidade: "un", confianca: 0.94 },
-      { nome: "Queijo mussarela", quantidade: 180, unidade: "g", confianca: 0.93 },
-      { nome: "Iogurte natural", quantidade: 2, unidade: "un", confianca: 0.91 },
+      { nome: "Leite", quantidade: 0.7, unidade: "L", confianca: 0.98, emoji: "🥛" },
+      { nome: "Ovos", quantidade: 6, unidade: "un", confianca: 0.97, emoji: "🥚" },
+      { nome: "Tomate", quantidade: 4, unidade: "un", confianca: 0.95, emoji: "🍅" },
+      { nome: "Alface", quantidade: 1, unidade: "un", confianca: 0.94, emoji: "🥬" },
+      { nome: "Queijo mussarela", quantidade: 180, unidade: "g", confianca: 0.93, emoji: "🧀" },
+      { nome: "Iogurte natural", quantidade: 2, unidade: "un", confianca: 0.91, emoji: "🥣" },
     ];
     setRelatorio(gerarRelatorio(estoque, exemplo));
     setAba("relatorio");
@@ -234,6 +234,8 @@ function Index() {
           <TabsContent value="relatorio">
             <RelatorioTab
               relatorio={relatorio}
+              estoque={estoque}
+              atualizarRelatorio={setRelatorio}
               adicionar={adicionar}
               irParaAnalise={() => setAba("analise")}
             />
