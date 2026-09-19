@@ -44,7 +44,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
           openai: {
             store: false,
             forceReasoning: true,
-            reasoningEffort: "low",
+            reasoningEffort: "medium",
             reasoningSummary: "auto",
             include: ["reasoning.encrypted_content"],
           },
@@ -56,11 +56,14 @@ export const analisarFoto = createServerFn({ method: "POST" })
               {
                 type: "text",
                 text: [
-                  "Você analisa fotos de geladeiras abertas.",
-                  "Liste TODOS os alimentos e bebidas visíveis, em português do Brasil.",
-                  "Estime a quantidade de cada um a partir do que aparece na imagem.",
-                  'Responda APENAS com JSON no formato: {"itens":[{"nome":"leite","quantidade":2,"unidade":"L","confianca":0.8}]}.',
-                  "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens que não estejam visíveis.",
+                  "Você é um inspetor visual meticuloso de geladeiras abertas.",
+                  "Faça uma varredura sistemática por zonas antes de responder: (1) porta e compartimentos da porta, (2) prateleiras superiores, (3) prateleiras centrais, (4) prateleiras inferiores, (5) gavetas de hortifrúti e áreas parcialmente visíveis.",
+                  "Liste TODOS os alimentos e bebidas realmente visíveis, em português do Brasil, agrupando aparições do mesmo alimento.",
+                  "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
+                  "Para líquidos, carnes, queijos e produtos parcialmente consumidos, estime a quantidade visível de forma conservadora.",
+                  "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
+                  'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","confianca":0.8,"emoji":"🍅"}]}.',
+                  "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
               { type: "image", image: data.imagem },
@@ -71,7 +74,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
 
       const texto = await resultado.text;
       const json = extrairJson(texto) as {
-        itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; confianca?: number }>;
+         itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; confianca?: number; emoji?: string }>;
       };
       const itens = (json.itens ?? [])
         .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
@@ -80,6 +83,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
           quantidade: Number(i.quantidade) > 0 ? Number(i.quantidade) : 1,
           unidade: typeof i.unidade === "string" ? i.unidade : "un",
           confianca: typeof i.confianca === "number" ? i.confianca : undefined,
+          emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
         }));
       return { ok: true as const, itens };
     } catch (e) {

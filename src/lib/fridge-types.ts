@@ -19,6 +19,7 @@ export type ItemIdeal = {
   quantidade: number;
   unidade: Unidade;
   categoria: Categoria;
+  emoji?: string | undefined;
 };
 
 export type ItemDetectado = {
@@ -26,6 +27,7 @@ export type ItemDetectado = {
   quantidade: number;
   unidade: string;
   confianca?: number | undefined;
+  emoji?: string | undefined;
 };
 
 export type LinhaRelatorio = {
@@ -41,6 +43,7 @@ export type Relatorio = {
   linhas: LinhaRelatorio[];
   extras: ItemDetectado[];
   abastecimento: number;
+  detectados?: ItemDetectado[] | undefined;
 };
 
 export type Loja = {

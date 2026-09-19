@@ -4,6 +4,7 @@ import {
   Copy,
   Loader2,
   MapPin,
+  Minus,
   Plus,
   ShoppingCart,
   Store,
@@ -20,12 +21,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Gauge } from "./gauge";
 import { buscarMercados, estimarPrecos } from "@/lib/fridge.functions";
-import { categoriaPalpite } from "@/lib/fridge-logic";
+import { categoriaPalpite, emojiDoAlimento, gerarRelatorio, mesmoItem } from "@/lib/fridge-logic";
 import { CATEGORIAS } from "@/lib/fridge-types";
 import type { ItemIdeal, Loja, PrecoEstimado, Relatorio } from "@/lib/fridge-types";
 
 type Props = {
   relatorio: Relatorio | null;
+  estoque: ItemIdeal[];
+  atualizarRelatorio: (relatorio: Relatorio) => void;
   adicionar: (item: Omit<ItemIdeal, "id">) => void;
   irParaAnalise: () => void;
 };
@@ -39,7 +42,7 @@ const rotulo = {
   faltando: { texto: "Faltando", classe: "bg-destructive/15 text-destructive" },
 } as const;
 
-export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
+export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar, irParaAnalise }: Props) {
   const [comprados, setComprados] = useState<Record<string, boolean>>({});
   const [precos, setPrecos] = useState<PrecoEstimado[]>([]);
   const [observacao, setObservacao] = useState("");
@@ -59,6 +62,39 @@ export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
   );
 
   const precoDe = (nome: string) => precos.find((p) => p.nome === nome)?.precoUnitario ?? 0;
+
+  const detectados = useMemo(() => {
+    if (!relatorio) return [];
+    if (relatorio.detectados) return relatorio.detectados;
+    return [
+      ...relatorio.linhas
+        .filter((linha) => linha.detectado > 0)
+        .map((linha) => ({
+          nome: linha.item.nome,
+          quantidade: linha.detectado,
+          unidade: linha.item.unidade,
+          emoji: linha.item.emoji,
+        })),
+      ...relatorio.extras,
+    ];
+  }, [relatorio]);
+
+  const ajustarQuantidade = (indice: number, direcao: -1 | 1) => {
+    const item = detectados[indice];
+    if (!item) return;
+    const unidade = item.unidade.toLowerCase();
+    const passo = unidade === "g" || unidade === "ml" ? 50 : unidade === "kg" || unidade === "l" ? 0.1 : 1;
+    const novaQuantidade = Math.max(0, Math.round((item.quantidade + direcao * passo) * 100) / 100);
+    const atualizados = detectados.map((detectado, i) =>
+      i === indice ? { ...detectado, quantidade: novaQuantidade } : detectado,
+    );
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+  };
+
+  const quantidadeDetectada = (quantidade: number, unidade: string) =>
+    unidade.toLowerCase() === "un"
+      ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
+      : `${quantidade.toLocaleString("pt-BR")} ${unidade} detectados`;
 
   const total = useMemo(
     () =>
@@ -184,6 +220,53 @@ export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
         </CardContent>
       </Card>
 
+      {detectados.length > 0 && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-lg">Alimentos detectados pela IA</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {detectados.map((item, indice) => (
+              <div
+                key={`${item.nome}-${indice}`}
+                className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card/80 p-3"
+              >
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-3xl" aria-hidden="true">
+                  {emojiDoAlimento(item.nome, item.emoji)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{item.nome}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {quantidadeDetectada(item.quantidade, item.unidade)}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar quantidade de ${item.nome}`}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Diminuir quantidade de ${item.nome}`}
+                    onClick={() => ajustarQuantidade(indice, -1)}
+                    disabled={item.quantidade <= 0}
+                  >
+                    <Minus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Aumentar quantidade de ${item.nome}`}
+                    onClick={() => ajustarQuantidade(indice, 1)}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Comparativo com o seu estoque ideal</CardTitle>
@@ -192,6 +275,12 @@ export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
           {relatorio.linhas.map((l) => (
             <div key={l.item.id} className="rounded-xl border border-border p-3">
               <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xl" aria-hidden="true">
+                  {emojiDoAlimento(
+                    l.item.nome,
+                    detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
+                  )}
+                </span>
                 <span className="font-medium">{l.item.nome}</span>
                 <Badge className={rotulo[l.situacao].classe}>{rotulo[l.situacao].texto}</Badge>
                 <span className="ml-auto text-sm tabular-nums text-muted-foreground">
@@ -225,7 +314,7 @@ export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
                   toast.success(`${e.nome} adicionado ao estoque ideal.`);
                 }}
               >
-                <Plus className="size-3.5" /> {e.nome}
+                <Plus className="size-3.5" /> {emojiDoAlimento(e.nome, e.emoji)} {e.nome}
               </Button>
             ))}
           </CardContent>
@@ -346,6 +435,12 @@ export function RelatorioTab({ relatorio, adicionar, irParaAnalise }: Props) {
                               setComprados((atual) => ({ ...atual, [l.item.id]: v === true }))
                             }
                           />
+                          <span className="text-xl" aria-hidden="true">
+                            {emojiDoAlimento(
+                              l.item.nome,
+                              detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
+                            )}
+                          </span>
                           <span className={marcado ? "line-through opacity-60" : ""}>
                             {l.item.nome}
                           </span>
