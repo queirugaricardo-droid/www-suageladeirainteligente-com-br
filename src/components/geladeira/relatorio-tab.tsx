@@ -231,7 +231,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 key={`${item.nome}-${indice}`}
                 className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card/80 p-3"
               >
-                <span className="font-emoji flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-3xl" aria-hidden="true">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-3xl" aria-hidden="true">
                   {emojiDoAlimento(item.nome, item.emoji)}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -275,7 +275,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           {relatorio.linhas.map((l) => (
             <div key={l.item.id} className="rounded-xl border border-border p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-emoji text-xl" aria-hidden="true">
+                <span className="text-xl" aria-hidden="true">
                   {emojiDoAlimento(
                     l.item.nome,
                     detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
@@ -435,7 +435,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                               setComprados((atual) => ({ ...atual, [l.item.id]: v === true }))
                             }
                           />
-                          <span className="font-emoji text-xl" aria-hidden="true">
+                          <span className="text-xl" aria-hidden="true">
                             {emojiDoAlimento(
                               l.item.nome,
                               detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,

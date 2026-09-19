@@ -130,7 +130,7 @@ export function EstoqueTab({ estoque, adicionar, atualizar, remover }: Props) {
                     key={item.id}
                     className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2"
                   >
-                    <span className="font-emoji flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-2xl" aria-hidden="true">
+                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-2xl" aria-hidden="true">
                       {emojiDoAlimento(item.nome, item.emoji)}
                     </span>
                     <Input
