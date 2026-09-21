@@ -435,15 +435,46 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">
             <ShoppingCart className="size-4 text-primary" /> Lista de compras
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={copiarLista} disabled={!faltantes.length}>
-            <Copy className="size-3.5" /> Copiar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={copiarLista} disabled={!pendentes.length}>
+              <Copy className="size-3.5" /> Copiar
+            </Button>
+            <Button
+              size="sm"
+              className="bg-[#25D366] text-white hover:bg-[#1eb85a]"
+              onClick={enviarWhatsApp}
+              disabled={!pendentes.length}
+            >
+              <MessageCircle className="size-3.5" /> Compartilhar no WhatsApp
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Com que frequência você faz mercado?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {FREQUENCIAS.map((f) => (
+                <Button
+                  key={f.fator}
+                  type="button"
+                  variant={frequencia === f.fator ? "default" : "outline"}
+                  className="h-auto flex-col gap-0.5 py-2"
+                  onClick={() => {
+                    setFrequencia(f.fator);
+                    toast.success(`Quantidades ajustadas para compra ${f.titulo.toLowerCase()}.`);
+                  }}
+                >
+                  <span className="text-sm font-semibold">{f.titulo}</span>
+                  <span className="text-xs opacity-80">{f.detalhe}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
           {faltantes.length === 0 ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Check className="size-4 text-primary" /> Sua geladeira está completa. Nada para
@@ -458,7 +489,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     .filter((l) => l.item.categoria === c)
                     .map((l) => {
                       const marcado = !!comprados[l.item.id];
-                      const preco = precoDe(l.item.nome);
+                      const preco = precoDe(l.item.nome) * frequencia;
                       return (
                         <label
                           key={l.item.id}
@@ -479,8 +510,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                           <span className={marcado ? "line-through opacity-60" : ""}>
                             {l.item.nome}
                           </span>
-                          <span className="text-sm text-muted-foreground">
-                            {l.faltam || l.item.quantidade} {l.item.unidade}
+                          <span className="text-sm tabular-nums text-muted-foreground">
+                            {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
                           </span>
                           <span className="ml-auto text-sm tabular-nums">
                             {preco > 0 ? moeda(preco) : "—"}
@@ -491,7 +522,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 </div>
               ))}
               <div className="flex items-center justify-between rounded-xl bg-secondary p-4">
-                <span className="font-medium">Total estimado</span>
+                <span className="font-medium">
+                  Total estimado <span className="text-xs text-muted-foreground">({rotuloFrequencia.toLowerCase()})</span>
+                </span>
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -499,6 +532,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               </p>
             </>
           )}
+
         </CardContent>
       </Card>
     </div>
