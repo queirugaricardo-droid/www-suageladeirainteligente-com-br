@@ -139,7 +139,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
   const usarLocalizacao = () => {
     if (!navigator.geolocation) {
-      setAvisoLocal("Seu navegador não permite detectar a localização. Digite sua cidade abaixo.");
+      setAvisoLocal(
+        "Seu navegador não permite detectar a localização. Digite sua cidade ou bairro no campo ao lado.",
+      );
       return;
     }
     setCarregandoLocal(true);
@@ -153,15 +155,25 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           setLojas(resposta.lojas);
           if (resposta.local) setLocal(resposta.local);
           if (!resposta.ok) setAvisoLocal(resposta.erro);
+          else if (resposta.lojas.length > 0)
+            toast.success(`${resposta.lojas.length} mercados encontrados perto de você.`);
+          else
+            setAvisoLocal(
+              "Não encontrei mercados por perto. Digite sua cidade ou bairro no campo ao lado.",
+            );
         } catch {
-          setAvisoLocal("Não consegui buscar mercados próximos agora.");
+          setAvisoLocal(
+            "Não consegui buscar mercados próximos agora. Digite sua cidade ou bairro no campo ao lado.",
+          );
         } finally {
           setCarregandoLocal(false);
         }
       },
       () => {
         setCarregandoLocal(false);
-        setAvisoLocal("Permissão de localização negada. Digite sua cidade ou CEP abaixo.");
+        setAvisoLocal(
+          "Permissão de localização negada. Digite sua cidade, bairro ou CEP no campo ao lado.",
+        );
       },
       { timeout: 12000 },
     );
@@ -189,10 +201,16 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setPrecos(resposta.precos);
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
+      toast.success(
+        mercado ? `Preços atualizados para ${mercado}.` : "Preços estimados com sucesso.",
+      );
+    } catch {
+      toast.error("Não consegui estimar os preços agora. Tente de novo em instantes.");
     } finally {
       setCarregandoPrecos(false);
     }
   };
+
 
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
