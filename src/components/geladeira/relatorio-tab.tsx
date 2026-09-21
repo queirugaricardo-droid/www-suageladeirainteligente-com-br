@@ -4,6 +4,7 @@ import {
   Copy,
   Loader2,
   MapPin,
+  MessageCircle,
   Minus,
   Plus,
   ShoppingCart,
@@ -42,6 +43,12 @@ const rotulo = {
   faltando: { texto: "Faltando", classe: "bg-destructive/15 text-destructive" },
 } as const;
 
+const FREQUENCIAS = [
+  { fator: 1, titulo: "Semanal", detalhe: "1x" },
+  { fator: 2, titulo: "Quinzenal", detalhe: "2x" },
+  { fator: 4, titulo: "Mensal", detalhe: "4x" },
+] as const;
+
 export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar, irParaAnalise }: Props) {
   const [comprados, setComprados] = useState<Record<string, boolean>>({});
   const [precos, setPrecos] = useState<PrecoEstimado[]>([]);
@@ -52,6 +59,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
+  const [frequencia, setFrequencia] = useState<number>(1);
 
   const mercados = useServerFn(buscarMercados);
   const orcar = useServerFn(estimarPrecos);
@@ -96,12 +104,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
       : `${quantidade.toLocaleString("pt-BR")} ${unidade} detectados`;
 
+  const quantidadeComprar = (linha: { faltam: number; item: ItemIdeal }) =>
+    Math.round((linha.faltam || linha.item.quantidade) * frequencia * 100) / 100;
+
   const total = useMemo(
     () =>
       faltantes
         .filter((l) => !comprados[l.item.id])
-        .reduce((soma, l) => soma + precoDe(l.item.nome), 0),
-    [faltantes, comprados, precos],
+        .reduce((soma, l) => soma + precoDe(l.item.nome) * frequencia, 0),
+    [faltantes, comprados, precos, frequencia],
   );
 
   if (!relatorio) {
@@ -128,7 +139,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
   const usarLocalizacao = () => {
     if (!navigator.geolocation) {
-      setAvisoLocal("Seu navegador não permite detectar a localização. Digite sua cidade abaixo.");
+      setAvisoLocal(
+        "Seu navegador não permite detectar a localização. Digite sua cidade ou bairro no campo ao lado.",
+      );
       return;
     }
     setCarregandoLocal(true);
@@ -142,15 +155,25 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           setLojas(resposta.lojas);
           if (resposta.local) setLocal(resposta.local);
           if (!resposta.ok) setAvisoLocal(resposta.erro);
+          else if (resposta.lojas.length > 0)
+            toast.success(`${resposta.lojas.length} mercados encontrados perto de você.`);
+          else
+            setAvisoLocal(
+              "Não encontrei mercados por perto. Digite sua cidade ou bairro no campo ao lado.",
+            );
         } catch {
-          setAvisoLocal("Não consegui buscar mercados próximos agora.");
+          setAvisoLocal(
+            "Não consegui buscar mercados próximos agora. Digite sua cidade ou bairro no campo ao lado.",
+          );
         } finally {
           setCarregandoLocal(false);
         }
       },
       () => {
         setCarregandoLocal(false);
-        setAvisoLocal("Permissão de localização negada. Digite sua cidade ou CEP abaixo.");
+        setAvisoLocal(
+          "Permissão de localização negada. Digite sua cidade, bairro ou CEP no campo ao lado.",
+        );
       },
       { timeout: 12000 },
     );
@@ -178,19 +201,49 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setPrecos(resposta.precos);
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
+      toast.success(
+        mercado ? `Preços atualizados para ${mercado}.` : "Preços estimados com sucesso.",
+      );
+    } catch {
+      toast.error("Não consegui estimar os preços agora. Tente de novo em instantes.");
     } finally {
       setCarregandoPrecos(false);
     }
   };
 
-  const copiarLista = async () => {
-    const texto = faltantes
-      .filter((l) => !comprados[l.item.id])
-      .map((l) => `- ${l.item.nome}: ${l.faltam || l.item.quantidade} ${l.item.unidade}`)
+
+  const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
+
+  const rotuloFrequencia =
+    FREQUENCIAS.find((f) => f.fator === frequencia)?.titulo ?? "Semanal";
+
+  const textoLista = () =>
+    [
+      `🧊 Lista de compras (${rotuloFrequencia.toLowerCase()})`,
+      "",
+      ...pendentes.map(
+        (l) =>
+          `${emojiDoAlimento(l.item.nome, l.item.emoji)} ${l.item.nome} — ${quantidadeComprar(l)} ${l.item.unidade}`,
+      ),
+      "",
+      total > 0 ? `💰 Total estimado: ${moeda(total)}` : "",
+    ]
+      .filter((linha) => linha !== "")
       .join("\n");
-    await navigator.clipboard.writeText(`Lista de compras\n${texto}`);
-    toast.success("Lista copiada!");
+
+  const copiarLista = async () => {
+    await navigator.clipboard.writeText(textoLista());
+    toast.success("Lista copiada para a área de transferência!");
   };
+
+  const enviarWhatsApp = () => {
+    if (pendentes.length === 0) {
+      toast.info("Nada para comprar por enquanto.");
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(textoLista())}`, "_blank", "noopener");
+  };
+
 
   return (
     <div className="space-y-6">
@@ -331,11 +384,11 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
-              Usar minha localização
+              {carregandoLocal ? "Procurando mercados..." : "Usar minha localização"}
             </Button>
             <Input
               className="h-9 w-56"
-              placeholder="Ou digite cidade / CEP"
+              placeholder="Ou digite cidade, bairro ou CEP"
               value={localManual}
               onChange={(e) => setLocalManual(e.target.value)}
             />
@@ -400,15 +453,46 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">
             <ShoppingCart className="size-4 text-primary" /> Lista de compras
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={copiarLista} disabled={!faltantes.length}>
-            <Copy className="size-3.5" /> Copiar
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={copiarLista} disabled={!pendentes.length}>
+              <Copy className="size-3.5" /> Copiar
+            </Button>
+            <Button
+              size="sm"
+              className="bg-[#25D366] text-white hover:bg-[#1eb85a]"
+              onClick={enviarWhatsApp}
+              disabled={!pendentes.length}
+            >
+              <MessageCircle className="size-3.5" /> Compartilhar no WhatsApp
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Com que frequência você faz mercado?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {FREQUENCIAS.map((f) => (
+                <Button
+                  key={f.fator}
+                  type="button"
+                  variant={frequencia === f.fator ? "default" : "outline"}
+                  className="h-auto flex-col gap-0.5 py-2"
+                  onClick={() => {
+                    setFrequencia(f.fator);
+                    toast.success(`Quantidades ajustadas para compra ${f.titulo.toLowerCase()}.`);
+                  }}
+                >
+                  <span className="text-sm font-semibold">{f.titulo}</span>
+                  <span className="text-xs opacity-80">{f.detalhe}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
           {faltantes.length === 0 ? (
             <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
               <Check className="size-4 text-primary" /> Sua geladeira está completa. Nada para
@@ -423,7 +507,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     .filter((l) => l.item.categoria === c)
                     .map((l) => {
                       const marcado = !!comprados[l.item.id];
-                      const preco = precoDe(l.item.nome);
+                      const preco = precoDe(l.item.nome) * frequencia;
                       return (
                         <label
                           key={l.item.id}
@@ -444,8 +528,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                           <span className={marcado ? "line-through opacity-60" : ""}>
                             {l.item.nome}
                           </span>
-                          <span className="text-sm text-muted-foreground">
-                            {l.faltam || l.item.quantidade} {l.item.unidade}
+                          <span className="text-sm tabular-nums text-muted-foreground">
+                            {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
                           </span>
                           <span className="ml-auto text-sm tabular-nums">
                             {preco > 0 ? moeda(preco) : "—"}
@@ -456,7 +540,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 </div>
               ))}
               <div className="flex items-center justify-between rounded-xl bg-secondary p-4">
-                <span className="font-medium">Total estimado</span>
+                <span className="font-medium">
+                  Total estimado <span className="text-xs text-muted-foreground">({rotuloFrequencia.toLowerCase()})</span>
+                </span>
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -464,6 +550,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               </p>
             </>
           )}
+
         </CardContent>
       </Card>
     </div>
