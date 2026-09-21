@@ -194,14 +194,38 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     }
   };
 
-  const copiarLista = async () => {
-    const texto = faltantes
-      .filter((l) => !comprados[l.item.id])
-      .map((l) => `- ${l.item.nome}: ${l.faltam || l.item.quantidade} ${l.item.unidade}`)
+  const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
+
+  const rotuloFrequencia =
+    FREQUENCIAS.find((f) => f.fator === frequencia)?.titulo ?? "Semanal";
+
+  const textoLista = () =>
+    [
+      `🧊 Lista de compras (${rotuloFrequencia.toLowerCase()})`,
+      "",
+      ...pendentes.map(
+        (l) =>
+          `${emojiDoAlimento(l.item.nome, l.item.emoji)} ${l.item.nome} — ${quantidadeComprar(l)} ${l.item.unidade}`,
+      ),
+      "",
+      total > 0 ? `💰 Total estimado: ${moeda(total)}` : "",
+    ]
+      .filter((linha) => linha !== "")
       .join("\n");
-    await navigator.clipboard.writeText(`Lista de compras\n${texto}`);
-    toast.success("Lista copiada!");
+
+  const copiarLista = async () => {
+    await navigator.clipboard.writeText(textoLista());
+    toast.success("Lista copiada para a área de transferência!");
   };
+
+  const enviarWhatsApp = () => {
+    if (pendentes.length === 0) {
+      toast.info("Nada para comprar por enquanto.");
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(textoLista())}`, "_blank", "noopener");
+  };
+
 
   return (
     <div className="space-y-6">
