@@ -104,12 +104,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
       : `${quantidade.toLocaleString("pt-BR")} ${unidade} detectados`;
 
+  const quantidadeComprar = (linha: { faltam: number; item: ItemIdeal }) =>
+    Math.round((linha.faltam || linha.item.quantidade) * frequencia * 100) / 100;
+
   const total = useMemo(
     () =>
       faltantes
         .filter((l) => !comprados[l.item.id])
-        .reduce((soma, l) => soma + precoDe(l.item.nome), 0),
-    [faltantes, comprados, precos],
+        .reduce((soma, l) => soma + precoDe(l.item.nome) * frequencia, 0),
+    [faltantes, comprados, precos, frequencia],
   );
 
   if (!relatorio) {
