@@ -384,11 +384,11 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
-              Usar minha localização
+              {carregandoLocal ? "Procurando mercados..." : "Usar minha localização"}
             </Button>
             <Input
               className="h-9 w-56"
-              placeholder="Ou digite cidade / CEP"
+              placeholder="Ou digite cidade, bairro ou CEP"
               value={localManual}
               onChange={(e) => setLocalManual(e.target.value)}
             />
