@@ -4,6 +4,7 @@ import {
   Copy,
   Loader2,
   MapPin,
+  MessageCircle,
   Minus,
   Plus,
   ShoppingCart,
@@ -42,6 +43,12 @@ const rotulo = {
   faltando: { texto: "Faltando", classe: "bg-destructive/15 text-destructive" },
 } as const;
 
+const FREQUENCIAS = [
+  { fator: 1, titulo: "Semanal", detalhe: "1x" },
+  { fator: 2, titulo: "Quinzenal", detalhe: "2x" },
+  { fator: 4, titulo: "Mensal", detalhe: "4x" },
+] as const;
+
 export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar, irParaAnalise }: Props) {
   const [comprados, setComprados] = useState<Record<string, boolean>>({});
   const [precos, setPrecos] = useState<PrecoEstimado[]>([]);
@@ -52,6 +59,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
+  const [frequencia, setFrequencia] = useState<number>(1);
 
   const mercados = useServerFn(buscarMercados);
   const orcar = useServerFn(estimarPrecos);
