@@ -7,3 +7,4 @@
 - [ ] Alimentar Minha geladeira e lista após confirmação sem perder dados
 - [ ] Polir lista de compras, estados vazios, loading e erros
 - [ ] Validar fluxos principais em desktop e iPhone
+- [ ] Atualizar o preview ao finalizar
