@@ -62,7 +62,8 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
                   "Para líquidos, carnes, queijos e produtos parcialmente consumidos, estime a quantidade visível de forma conservadora.",
                   "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
-                  'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","confianca":0.8,"emoji":"🍅"}]}.',
+                   'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
+                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
@@ -74,7 +75,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
 
       const texto = await resultado.text;
       const json = extrairJson(texto) as {
-         itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; confianca?: number; emoji?: string }>;
+          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; confianca?: number; emoji?: string; categoria?: string }>;
       };
       const itens = (json.itens ?? [])
         .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
@@ -84,6 +85,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
           unidade: typeof i.unidade === "string" ? i.unidade : "un",
           confianca: typeof i.confianca === "number" ? i.confianca : undefined,
           emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
+           categoria: typeof i.categoria === "string" ? i.categoria.trim() : undefined,
         }));
       return { ok: true as const, itens };
     } catch (e) {
