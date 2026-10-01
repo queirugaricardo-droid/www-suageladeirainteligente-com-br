@@ -6,7 +6,10 @@ import {
   MapPin,
   MessageCircle,
   Minus,
+  Pencil,
   Plus,
+  Trash2,
+  X,
   ShoppingCart,
   Store,
   TriangleAlert,
@@ -60,6 +63,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
   const [frequencia, setFrequencia] = useState<number>(1);
+  const [editando, setEditando] = useState<number | null>(null);
+  const [nomeEditado, setNomeEditado] = useState("");
 
   const mercados = useServerFn(buscarMercados);
   const orcar = useServerFn(estimarPrecos);
