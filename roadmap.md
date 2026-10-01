@@ -1,15 +1,9 @@
 # Geladeira Inteligente — tarefas
 
-- [x] Cadastro do estoque ideal (adicionar/editar/remover, categorias)
-- [x] Foto da geladeira (câmera ou upload) + análise por IA
-- [x] Relatório comparativo ideal x detectado
-- [x] Lista de compras interativa e categorizada
-- [x] Medidor visual de % de abastecimento da geladeira
-- [x] Estimativa de preços por região e total da lista
-- [x] Mercados próximos por geolocalização
-- [x] PWA: manifesto, ícones (192/512/maskable/apple-touch) e meta tags de instalação (instalável na tela inicial; sem modo offline por enquanto)
-- [x] Redesenhar a página inicial com foco em foto, exemplo prático, três passos e destaque da IA
-- [x] Aprimorar inspeção visual, emojis e ajuste manual das quantidades detectadas
-- [x] Frequência de compras (semanal/quinzenal/mensal) recalculando quantidades e valores
-- [x] Botão "Compartilhar no WhatsApp" na lista de compras
-- [x] Polimento dos estados de carregamento, confirmações e fallback de localização
+- [ ] Reformular navegação e início mobile-first com resumo do produto
+- [ ] Criar revisão dos alimentos detectados antes de salvar
+- [ ] Permitir confirmar, editar, remover e adicionar itens detectados
+- [ ] Organizar resultados por categoria e sinalizar confiança
+- [ ] Alimentar Minha geladeira e lista após confirmação sem perder dados
+- [ ] Polir lista de compras, estados vazios, loading e erros
+- [ ] Validar fluxos principais em desktop e iPhone
