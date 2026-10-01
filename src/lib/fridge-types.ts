@@ -28,7 +28,20 @@ export type ItemDetectado = {
   unidade: string;
   confianca?: number | undefined;
   emoji?: string | undefined;
+  categoria?: CategoriaDeteccao | undefined;
 };
+
+export const CATEGORIAS_DETECCAO = [
+  "Frutas",
+  "Verduras e legumes",
+  "Laticínios",
+  "Bebidas",
+  "Carnes",
+  "Ovos",
+  "Outros",
+] as const;
+
+export type CategoriaDeteccao = (typeof CATEGORIAS_DETECCAO)[number];
 
 export type LinhaRelatorio = {
   item: ItemIdeal;

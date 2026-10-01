@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep AI photo results as an in-memory review draft and persist a report only after explicit user confirmation, so uncertain detections never silently affect inventory.

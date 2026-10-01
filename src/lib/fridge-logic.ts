@@ -1,5 +1,6 @@
 import type {
   Categoria,
+  CategoriaDeteccao,
   ItemDetectado,
   ItemIdeal,
   LinhaRelatorio,
@@ -127,6 +128,19 @@ export function categoriaPalpite(nome: string): Categoria {
     if (palavras.some((p) => n.includes(p))) return categoria;
   }
   return "Outros";
+}
+
+export function categoriaDeteccao(nome: string): CategoriaDeteccao {
+  const n = normalizar(nome);
+  const grupos: Array<[CategoriaDeteccao, string[]]> = [
+    ["Ovos", ["ovo"]],
+    ["Frutas", ["maca", "banana", "laranja", "limao", "uva", "morango", "abacate", "manga", "pera"]],
+    ["Verduras e legumes", ["alface", "tomate", "cenoura", "cebola", "batata", "brocolis", "pepino", "couve", "verdura", "legume"]],
+    ["Laticínios", ["leite", "queijo", "iogurte", "manteiga", "requeijao", "creme"]],
+    ["Bebidas", ["suco", "refrigerante", "agua", "cerveja", "cha", "vinho"]],
+    ["Carnes", ["frango", "carne", "peixe", "linguica", "bacon", "presunto", "file"]],
+  ];
+  return grupos.find(([, palavras]) => palavras.some((palavra) => n.includes(palavra)))?.[0] ?? "Outros";
 }
 
 export const ESTOQUE_EXEMPLO: ItemIdeal[] = [
