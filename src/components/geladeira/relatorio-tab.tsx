@@ -6,7 +6,10 @@ import {
   MapPin,
   MessageCircle,
   Minus,
+  Pencil,
   Plus,
+  Trash2,
+  X,
   ShoppingCart,
   Store,
   TriangleAlert,
@@ -60,6 +63,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
   const [frequencia, setFrequencia] = useState<number>(1);
+  const [editando, setEditando] = useState<number | null>(null);
+  const [nomeEditado, setNomeEditado] = useState("");
 
   const mercados = useServerFn(buscarMercados);
   const orcar = useServerFn(estimarPrecos);
@@ -97,6 +102,33 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       i === indice ? { ...detectado, quantidade: novaQuantidade } : detectado,
     );
     atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+  };
+
+  const iniciarEdicao = (indice: number) => {
+    setEditando(indice);
+    setNomeEditado(detectados[indice]?.nome ?? "");
+  };
+
+  const confirmarEdicao = (indice: number) => {
+    const item = detectados[indice];
+    const nome = nomeEditado.trim();
+    setEditando(null);
+    if (!item || !nome || nome === item.nome) return;
+    const atualizados = detectados.map((detectado, i) =>
+      i === indice
+        ? { ...detectado, nome, emoji: emojiDoAlimento(nome) }
+        : detectado,
+    );
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" renomeado para "${nome}".`);
+  };
+
+  const removerDetectado = (indice: number) => {
+    const item = detectados[indice];
+    if (!item) return;
+    const atualizados = detectados.filter((_, i) => i !== indice);
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" removido da análise.`);
   };
 
   const quantidadeDetectada = (quantidade: number, unidade: string) =>
@@ -288,12 +320,51 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   {emojiDoAlimento(item.nome, item.emoji)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{item.nome}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {quantidadeDetectada(item.quantidade, item.unidade)}
-                  </p>
+                  {editando === indice ? (
+                    <form
+                      className="flex items-center gap-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        confirmarEdicao(indice);
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        className="h-8 text-sm"
+                        value={nomeEditado}
+                        onChange={(e) => setNomeEditado(e.target.value)}
+                        aria-label={`Novo nome para ${item.nome}`}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Confirmar novo nome"
+                      >
+                        <Check className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Cancelar edição"
+                        onClick={() => setEditando(null)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="truncate font-semibold">{item.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {quantidadeDetectada(item.quantidade, item.unidade)}
+                      </p>
+                    </>
+                  )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar quantidade de ${item.nome}`}>
+                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar ${item.nome}`}>
                   <Button
                     variant="outline"
                     size="icon"
@@ -312,6 +383,24 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     onClick={() => ajustarQuantidade(indice, 1)}
                   >
                     <Plus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Renomear ${item.nome}`}
+                    onClick={() => iniciarEdicao(indice)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 text-destructive hover:text-destructive"
+                    aria-label={`Remover ${item.nome} da análise`}
+                    onClick={() => removerDetectado(indice)}
+                  >
+                    <Trash2 className="size-4" />
                   </Button>
                 </div>
               </div>
