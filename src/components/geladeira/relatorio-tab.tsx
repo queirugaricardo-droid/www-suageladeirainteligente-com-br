@@ -320,12 +320,51 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   {emojiDoAlimento(item.nome, item.emoji)}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{item.nome}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {quantidadeDetectada(item.quantidade, item.unidade)}
-                  </p>
+                  {editando === indice ? (
+                    <form
+                      className="flex items-center gap-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        confirmarEdicao(indice);
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        className="h-8 text-sm"
+                        value={nomeEditado}
+                        onChange={(e) => setNomeEditado(e.target.value)}
+                        aria-label={`Novo nome para ${item.nome}`}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Confirmar novo nome"
+                      >
+                        <Check className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Cancelar edição"
+                        onClick={() => setEditando(null)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="truncate font-semibold">{item.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {quantidadeDetectada(item.quantidade, item.unidade)}
+                      </p>
+                    </>
+                  )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar quantidade de ${item.nome}`}>
+                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar ${item.nome}`}>
                   <Button
                     variant="outline"
                     size="icon"
@@ -344,6 +383,24 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     onClick={() => ajustarQuantidade(indice, 1)}
                   >
                     <Plus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Renomear ${item.nome}`}
+                    onClick={() => iniciarEdicao(indice)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 text-destructive hover:text-destructive"
+                    aria-label={`Remover ${item.nome} da análise`}
+                    onClick={() => removerDetectado(indice)}
+                  >
+                    <Trash2 className="size-4" />
                   </Button>
                 </div>
               </div>
