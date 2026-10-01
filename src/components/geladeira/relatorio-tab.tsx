@@ -104,6 +104,33 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     atualizarRelatorio(gerarRelatorio(estoque, atualizados));
   };
 
+  const iniciarEdicao = (indice: number) => {
+    setEditando(indice);
+    setNomeEditado(detectados[indice]?.nome ?? "");
+  };
+
+  const confirmarEdicao = (indice: number) => {
+    const item = detectados[indice];
+    const nome = nomeEditado.trim();
+    setEditando(null);
+    if (!item || !nome || nome === item.nome) return;
+    const atualizados = detectados.map((detectado, i) =>
+      i === indice
+        ? { ...detectado, nome, emoji: emojiDoAlimento(nome) }
+        : detectado,
+    );
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" renomeado para "${nome}".`);
+  };
+
+  const removerDetectado = (indice: number) => {
+    const item = detectados[indice];
+    if (!item) return;
+    const atualizados = detectados.filter((_, i) => i !== indice);
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" removido da análise.`);
+  };
+
   const quantidadeDetectada = (quantidade: number, unidade: string) =>
     unidade.toLowerCase() === "un"
       ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
