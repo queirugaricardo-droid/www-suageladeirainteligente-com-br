@@ -33,7 +33,11 @@ function erroAmigavel(e: unknown) {
 
 export const analisarFoto = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({ imagem: z.string().min(50).max(12_000_000) }).parse(input),
+    z
+      .object({
+        imagens: z.array(z.string().min(50).max(12_000_000)).min(1).max(2),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     try {
