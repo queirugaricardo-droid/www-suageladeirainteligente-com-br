@@ -92,7 +92,11 @@ export const analisarFoto = createServerFn({ method: "POST" })
           unidade: typeof i.unidade === "string" ? i.unidade : "un",
           confianca: typeof i.confianca === "number" ? i.confianca : undefined,
           emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
-           categoria: typeof i.categoria === "string" ? i.categoria.trim() : undefined,
+           categoria:
+            typeof i.categoria === "string" &&
+            (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
+              ? (i.categoria.trim() as CategoriaDeteccao)
+              : undefined,
         }));
       return { ok: true as const, itens };
     } catch (e) {
