@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
+import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
 
