@@ -9,6 +9,8 @@ import { analisarFoto } from "@/lib/fridge.functions";
 import { gerarRelatorio } from "@/lib/fridge-logic";
 import type { ItemIdeal, Relatorio } from "@/lib/fridge-types";
 
+const MAX_FOTOS = 2;
+
 type Props = {
   estoque: ItemIdeal[];
   aoConcluir: (relatorio: Relatorio) => void;
@@ -46,7 +48,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   { estoque, aoConcluir },
   ref,
 ) {
-  const [foto, setFoto] = useState<string | null>(null);
+  const [fotos, setFotos] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
   const inputCamera = useRef<HTMLInputElement>(null);
@@ -60,15 +62,24 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const escolher = async (arquivo?: File) => {
     if (!arquivo) return;
     setErro("");
+    if (fotos.length >= MAX_FOTOS) {
+      setErro(`Você pode enviar no máximo ${MAX_FOTOS} fotos por análise.`);
+      return;
+    }
     try {
-      setFoto(await comprimir(arquivo));
+      const nova = await comprimir(arquivo);
+      setFotos((atual) => [...atual, nova].slice(0, MAX_FOTOS));
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não consegui carregar a foto.");
     }
   };
 
+  const removerFoto = (indice: number) => {
+    setFotos((atual) => atual.filter((_, i) => i !== indice));
+  };
+
   const executar = async () => {
-    if (!foto) return;
+    if (fotos.length === 0) return;
     if (estoque.length === 0) {
       setErro("Cadastre pelo menos um alimento no estoque ideal antes de analisar.");
       return;
@@ -76,7 +87,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
     setCarregando(true);
     setErro("");
     try {
-      const resposta = await analisar({ data: { imagem: foto } });
+      const resposta = await analisar({ data: { imagens: fotos } });
       if (!resposta.ok) {
         setErro(resposta.erro);
         return;
@@ -116,18 +127,38 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           onChange={(e) => escolher(e.target.files?.[0])}
         />
 
-        {foto ? (
-          <div className="relative overflow-hidden rounded-2xl border border-border">
-            <img src={foto} alt="Foto da geladeira enviada" className="max-h-96 w-full object-cover" />
-            <Button
-              variant="secondary"
-              size="icon"
-              className="absolute right-3 top-3"
-              aria-label="Remover foto"
-              onClick={() => setFoto(null)}
-            >
-              <X className="size-4" />
-            </Button>
+        {fotos.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3">
+            {fotos.map((foto, i) => (
+              <div key={i} className="relative overflow-hidden rounded-2xl border border-border">
+                <img
+                  src={foto}
+                  alt={`Foto ${i + 1} da geladeira`}
+                  className="h-44 w-full object-cover sm:h-56"
+                />
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="absolute right-2 top-2"
+                  aria-label={`Remover foto ${i + 1}`}
+                  onClick={() => removerFoto(i)}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
+            {fotos.length < MAX_FOTOS && (
+              <button
+                type="button"
+                onClick={() => inputArquivo.current?.click()}
+                className="flex h-44 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-secondary/40 text-center transition-colors hover:bg-secondary sm:h-56"
+              >
+                <ImagePlus className="size-7 text-primary" />
+                <span className="text-sm font-medium text-foreground">
+                  Adicionar 2ª foto (outro ângulo)
+                </span>
+              </button>
+            )}
           </div>
         ) : (
           <button
@@ -138,19 +169,28 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
             <ImagePlus className="size-8 text-primary" />
             <span className="font-medium text-foreground">Toque para escolher uma foto</span>
             <span className="text-sm text-muted-foreground">
-              Abra a geladeira, fotografe de frente e com boa luz
+              Abra a geladeira, fotografe de frente e com boa luz. Você pode enviar até {MAX_FOTOS}{" "}
+              fotos de ângulos diferentes.
             </span>
           </button>
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => inputCamera.current?.click()}>
+          <Button
+            variant="outline"
+            onClick={() => inputCamera.current?.click()}
+            disabled={fotos.length >= MAX_FOTOS}
+          >
             <Camera className="size-4" /> Tirar foto
           </Button>
-          <Button variant="outline" onClick={() => inputArquivo.current?.click()}>
+          <Button
+            variant="outline"
+            onClick={() => inputArquivo.current?.click()}
+            disabled={fotos.length >= MAX_FOTOS}
+          >
             <ImagePlus className="size-4" /> Carregar imagem
           </Button>
-          <Button onClick={executar} disabled={!foto || carregando} className="ml-auto">
+          <Button onClick={executar} disabled={fotos.length === 0 || carregando} className="ml-auto">
             {carregando ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Analisando sua geladeira...
