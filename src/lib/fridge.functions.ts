@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
+import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
 
@@ -33,7 +34,11 @@ function erroAmigavel(e: unknown) {
 
 export const analisarFoto = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
-    z.object({ imagem: z.string().min(50).max(12_000_000) }).parse(input),
+    z
+      .object({
+        imagens: z.array(z.string().min(50).max(12_000_000)).min(1).max(2),
+      })
+      .parse(input),
   )
   .handler(async ({ data }) => {
     try {
@@ -57,6 +62,9 @@ export const analisarFoto = createServerFn({ method: "POST" })
                 type: "text",
                 text: [
                   "Você é um inspetor visual meticuloso de geladeiras abertas.",
+                  data.imagens.length > 1
+                    ? `Você recebeu ${data.imagens.length} fotos da MESMA geladeira, de ângulos diferentes. Analise todas juntas e consolide os itens sem duplicar o mesmo alimento visto em mais de uma foto.`
+                    : "",
                   "Faça uma varredura sistemática por zonas antes de responder: (1) porta e compartimentos da porta, (2) prateleiras superiores, (3) prateleiras centrais, (4) prateleiras inferiores, (5) gavetas de hortifrúti e áreas parcialmente visíveis.",
                   "Liste TODOS os alimentos e bebidas realmente visíveis, em português do Brasil, agrupando aparições do mesmo alimento.",
                   "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
@@ -67,7 +75,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
-              { type: "image", image: data.imagem },
+              ...data.imagens.map((imagem) => ({ type: "image" as const, image: imagem })),
             ],
           },
         ],
@@ -85,7 +93,11 @@ export const analisarFoto = createServerFn({ method: "POST" })
           unidade: typeof i.unidade === "string" ? i.unidade : "un",
           confianca: typeof i.confianca === "number" ? i.confianca : undefined,
           emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
-           categoria: typeof i.categoria === "string" ? i.categoria.trim() : undefined,
+           categoria:
+            typeof i.categoria === "string" &&
+            (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
+              ? (i.categoria.trim() as CategoriaDeteccao)
+              : undefined,
         }));
       return { ok: true as const, itens };
     } catch (e) {
