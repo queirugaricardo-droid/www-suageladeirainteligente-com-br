@@ -74,7 +74,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
-              { type: "image", image: data.imagem },
+              ...data.imagens.map((imagem) => ({ type: "image" as const, image: imagem })),
             ],
           },
         ],
