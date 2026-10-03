@@ -35,6 +35,39 @@ export type Database = {
         }
         Relationships: []
       }
+      estoque_ideal: {
+        Row: {
+          categoria: string
+          created_at: string
+          emoji: string | null
+          id: string
+          nome: string
+          quantidade: number
+          unidade: string
+          user_id: string
+        }
+        Insert: {
+          categoria?: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nome: string
+          quantidade?: number
+          unidade?: string
+          user_id?: string
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nome?: string
+          quantidade?: number
+          unidade?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
