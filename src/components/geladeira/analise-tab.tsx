@@ -1,11 +1,14 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
+import { useSessao } from "@/lib/use-sessao";
 import { Camera, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { analisarFoto } from "@/lib/fridge.functions";
+import { analisarFoto, consultarUsoFotos } from "@/lib/fridge.functions";
 import { gerarRelatorio } from "@/lib/fridge-logic";
 import type { ItemIdeal, Relatorio } from "@/lib/fridge-types";
 
@@ -54,6 +57,23 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const inputCamera = useRef<HTMLInputElement>(null);
   const inputArquivo = useRef<HTMLInputElement>(null);
   const analisar = useServerFn(analisarFoto);
+  const consultarUso = useServerFn(consultarUsoFotos);
+  const { usuario, pronto } = useSessao();
+  const [restantes, setRestantes] = useState<number | null>(null);
+
+  const atualizarUso = useCallback(async () => {
+    try {
+      const uso = await consultarUso();
+      setRestantes(uso.restantes);
+    } catch {
+      setRestantes(null);
+    }
+  }, [consultarUso]);
+
+  useEffect(() => {
+    if (usuario) atualizarUso();
+    else setRestantes(null);
+  }, [usuario, atualizarUso]);
 
   useImperativeHandle(ref, () => ({
     abrirCamera: () => inputCamera.current?.click(),
@@ -80,6 +100,14 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
 
   const executar = async () => {
     if (fotos.length === 0) return;
+    if (!usuario) {
+      setErro("Entre na sua conta para analisar fotos.");
+      return;
+    }
+    if (restantes !== null && fotos.length > restantes) {
+      setErro(restantes === 0 ? "Você já usou suas 2 fotos deste mês. O limite renova no dia 1º." : `Você só tem ${restantes} foto restante neste mês.`);
+      return;
+    }
     if (estoque.length === 0) {
       setErro("Cadastre pelo menos um alimento no estoque ideal antes de analisar.");
       return;
@@ -102,6 +130,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
       setErro(e instanceof Error ? e.message : "Falha ao analisar a foto.");
     } finally {
       setCarregando(false);
+      atualizarUso();
     }
   };
 
@@ -111,6 +140,25 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
         <CardTitle className="text-lg">Foto da geladeira aberta</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {pronto && !usuario ? (
+          <Alert>
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>Entre na sua conta para analisar fotos (2 fotos por mês).</span>
+              <Button asChild size="sm">
+                <Link to="/auth">Entrar</Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : usuario ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-sm">
+            <span>
+              {restantes === null ? "Verificando seu limite..." : `${restantes} de 2 fotos restantes neste mês`}
+            </span>
+            <button type="button" className="text-muted-foreground underline-offset-4 hover:underline" onClick={() => supabase.auth.signOut()}>
+              Sair ({usuario.email})
+            </button>
+          </div>
+        ) : null}
         <input
           ref={inputCamera}
           type="file"
@@ -190,7 +238,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           >
             <ImagePlus className="size-4" /> Carregar imagem
           </Button>
-          <Button onClick={executar} disabled={fotos.length === 0 || carregando} className="ml-auto">
+          <Button onClick={executar} disabled={fotos.length === 0 || carregando || !usuario || restantes === 0} className="ml-auto">
             {carregando ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Analisando sua geladeira...
