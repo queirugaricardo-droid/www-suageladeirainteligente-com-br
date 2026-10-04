@@ -1,5 +1,6 @@
 # Geladeira Inteligente — tarefas
 
+- [x] Criar página estática de vendas do plano mensal em `/oferta`
 - [ ] Reformular navegação e início mobile-first com resumo do produto
 - [ ] Criar revisão dos alimentos detectados antes de salvar
 - [ ] Permitir confirmar, editar, remover e adicionar itens detectados
