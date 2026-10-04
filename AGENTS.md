@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Keep AI photo results as an in-memory review draft and persist a report only after explicit user confirmation, so uncertain detections never silently affect inventory.
+- Keep `/oferta` data-free and prerendered as the public sales page, so it remains fast and independent from authenticated app state.
