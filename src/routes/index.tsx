@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { EstoqueTab } from "@/components/geladeira/estoque-tab";
 import { AnaliseTab, type AnaliseTabHandle } from "@/components/geladeira/analise-tab";
 import { RelatorioTab } from "@/components/geladeira/relatorio-tab";
+import { RevisaoTab } from "@/components/geladeira/revisao-tab";
 import { useGeladeira } from "@/lib/use-geladeira";
 import { gerarRelatorio } from "@/lib/fridge-logic";
 import type { ItemDetectado } from "@/lib/fridge-types";
@@ -50,6 +51,7 @@ function Index() {
   const { estoque, relatorio, setRelatorio, adicionar, atualizar, remover } = useGeladeira();
   const [aba, setAba] = useState("inicio");
   const [menuAberto, setMenuAberto] = useState(false);
+  const [rascunho, setRascunho] = useState<ItemDetectado[] | null>(null);
   const analiseRef = useRef<AnaliseTabHandle>(null);
 
   const fotografar = () => {
@@ -67,9 +69,15 @@ function Index() {
       { nome: "Queijo mussarela", quantidade: 180, unidade: "g", confianca: 0.93, emoji: "🧀" },
       { nome: "Iogurte natural", quantidade: 2, unidade: "un", confianca: 0.91, emoji: "🥣" },
     ];
-    setRelatorio(gerarRelatorio(estoque, exemplo));
-    setAba("relatorio");
+    setRascunho(exemplo);
+    setAba("revisao");
     setMenuAberto(false);
+  };
+
+  const confirmarRevisao = (itens: ItemDetectado[]) => {
+    setRelatorio(gerarRelatorio(estoque, itens));
+    setRascunho(null);
+    setAba("relatorio");
   };
 
   const navegar = (destino: string) => {
@@ -210,7 +218,7 @@ function Index() {
           </section>
         </TabsContent>
 
-        <div className={aba === "inicio" ? "hidden" : "mx-auto max-w-5xl px-4 py-8 sm:px-6"}>
+        <div className={aba === "inicio" ? "hidden" : "mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6 md:pb-8"}>
           <TabsContent value="estoque">
             <EstoqueTab
               estoque={estoque}
@@ -224,11 +232,34 @@ function Index() {
             <AnaliseTab
               ref={analiseRef}
               estoque={estoque}
-              aoConcluir={(r) => {
-                setRelatorio(r);
-                setAba("relatorio");
+              aoConcluir={(itens) => {
+                setRascunho(itens);
+                setAba("revisao");
               }}
             />
+          </TabsContent>
+
+          <TabsContent value="revisao">
+            {rascunho ? (
+              <RevisaoTab
+                itens={rascunho}
+                aoConfirmar={confirmarRevisao}
+                aoVoltar={() => {
+                  setRascunho(null);
+                  setAba("analise");
+                }}
+              />
+            ) : (
+              <div className="rounded-2xl border border-border bg-card p-10 text-center">
+                <p className="font-medium">Nenhuma análise para revisar</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Envie uma foto da geladeira para a IA identificar os alimentos.
+                </p>
+                <Button className="mt-4" onClick={() => setAba("analise")}>
+                  <Camera /> Analisar geladeira
+                </Button>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="relatorio">
@@ -242,6 +273,31 @@ function Index() {
           </TabsContent>
         </div>
       </Tabs>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-border bg-background/90 backdrop-blur-xl md:hidden"
+        aria-label="Navegação inferior"
+      >
+        {[
+          { destino: "inicio", rotulo: "Início", Icone: Refrigerator },
+          { destino: "estoque", rotulo: "Estoque", Icone: CheckCircle2 },
+          { destino: "analise", rotulo: "Analisar", Icone: Camera },
+          { destino: "relatorio", rotulo: "Lista", Icone: ShoppingCart },
+        ].map(({ destino, rotulo, Icone }) => (
+          <button
+            key={destino}
+            type="button"
+            onClick={() => navegar(destino)}
+            className={`flex flex-col items-center gap-1 py-2.5 text-xs font-semibold transition-colors ${
+              aba === destino ? "text-primary" : "text-muted-foreground"
+            }`}
+            aria-current={aba === destino ? "page" : undefined}
+          >
+            <Icone className="size-5" />
+            {rotulo}
+          </button>
+        ))}
+      </nav>
     </main>
   );
 }
