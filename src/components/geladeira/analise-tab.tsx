@@ -9,14 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { analisarFoto, consultarUsoFotos } from "@/lib/fridge.functions";
-import { gerarRelatorio } from "@/lib/fridge-logic";
-import type { ItemIdeal, Relatorio } from "@/lib/fridge-types";
+import type { ItemDetectado, ItemIdeal } from "@/lib/fridge-types";
 
 const MAX_FOTOS = 2;
 
 type Props = {
   estoque: ItemIdeal[];
-  aoConcluir: (relatorio: Relatorio) => void;
+  aoConcluir: (itens: ItemDetectado[]) => void;
 };
 
 export type AnaliseTabHandle = {
@@ -124,8 +123,8 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
         setErro("Não identifiquei alimentos nessa foto. Tente uma imagem mais iluminada e de perto.");
         return;
       }
-      aoConcluir(gerarRelatorio(estoque, resposta.itens));
-      toast.success(`${resposta.itens.length} itens identificados na sua geladeira.`);
+      aoConcluir(resposta.itens);
+      toast.success(`${resposta.itens.length} itens identificados — revise antes de confirmar.`);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Falha ao analisar a foto.");
     } finally {
