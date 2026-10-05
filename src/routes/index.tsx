@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { EstoqueTab } from "@/components/geladeira/estoque-tab";
 import { AnaliseTab, type AnaliseTabHandle } from "@/components/geladeira/analise-tab";
 import { RelatorioTab } from "@/components/geladeira/relatorio-tab";
+import { RevisaoTab } from "@/components/geladeira/revisao-tab";
 import { useGeladeira } from "@/lib/use-geladeira";
 import { gerarRelatorio } from "@/lib/fridge-logic";
 import type { ItemDetectado } from "@/lib/fridge-types";
@@ -50,6 +51,7 @@ function Index() {
   const { estoque, relatorio, setRelatorio, adicionar, atualizar, remover } = useGeladeira();
   const [aba, setAba] = useState("inicio");
   const [menuAberto, setMenuAberto] = useState(false);
+  const [rascunho, setRascunho] = useState<ItemDetectado[] | null>(null);
   const analiseRef = useRef<AnaliseTabHandle>(null);
 
   const fotografar = () => {
@@ -67,9 +69,15 @@ function Index() {
       { nome: "Queijo mussarela", quantidade: 180, unidade: "g", confianca: 0.93, emoji: "🧀" },
       { nome: "Iogurte natural", quantidade: 2, unidade: "un", confianca: 0.91, emoji: "🥣" },
     ];
-    setRelatorio(gerarRelatorio(estoque, exemplo));
-    setAba("relatorio");
+    setRascunho(exemplo);
+    setAba("revisao");
     setMenuAberto(false);
+  };
+
+  const confirmarRevisao = (itens: ItemDetectado[]) => {
+    setRelatorio(gerarRelatorio(estoque, itens));
+    setRascunho(null);
+    setAba("relatorio");
   };
 
   const navegar = (destino: string) => {
