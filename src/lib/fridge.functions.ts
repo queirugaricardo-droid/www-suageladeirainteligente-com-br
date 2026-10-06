@@ -108,10 +108,11 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Faça uma varredura sistemática por zonas antes de responder: (1) porta e compartimentos da porta, (2) prateleiras superiores, (3) prateleiras centrais, (4) prateleiras inferiores, (5) gavetas de hortifrúti e áreas parcialmente visíveis.",
                   "Liste TODOS os alimentos e bebidas realmente visíveis, em português do Brasil, agrupando aparições do mesmo alimento.",
                   "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
-                  "Para líquidos, carnes, queijos e produtos parcialmente consumidos, estime a quantidade visível de forma conservadora.",
+                  "Separe identificação de quantidade: você NÃO consegue medir peso nem volume exatos por foto. Para líquidos, carnes, queijos, frutas a granel e produtos parcialmente consumidos, prefira contar embalagens/unidades (un ou pacote); se precisar usar g, kg, ml ou L, dê uma estimativa conservadora e marque \"estimado\": true.",
+                  "Use \"confianca\" de 0 a 1 de forma honesta: abaixo de 0.9 quando o alimento estiver parcialmente encoberto, com rótulo ilegível ou quando houver dúvida sobre o que é.",
                   "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
                    'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
-                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
+                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
@@ -123,22 +124,30 @@ export const analisarFoto = createServerFn({ method: "POST" })
 
       const texto = await resultado.text;
       const json = extrairJson(texto) as {
-          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; confianca?: number; emoji?: string; categoria?: string }>;
+          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
       };
       const itens = (json.itens ?? [])
         .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
-        .map((i) => ({
-          nome: String(i.nome).trim(),
-          quantidade: Number(i.quantidade) > 0 ? Number(i.quantidade) : 1,
-          unidade: typeof i.unidade === "string" ? i.unidade : "un",
-          confianca: typeof i.confianca === "number" ? i.confianca : undefined,
-          emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
-           categoria:
-            typeof i.categoria === "string" &&
-            (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
-              ? (i.categoria.trim() as CategoriaDeteccao)
-              : undefined,
-        }));
+        .map((i) => {
+          const unidade = typeof i.unidade === "string" ? i.unidade : "un";
+          const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
+          const estimado = i.estimado === true || pesoOuVolume;
+          const confiancaBase = typeof i.confianca === "number" ? i.confianca : undefined;
+          return {
+            nome: String(i.nome).trim(),
+            quantidade: Number(i.quantidade) > 0 ? Number(i.quantidade) : 1,
+            unidade,
+            estimado,
+            // Quantidade estimada nunca é apresentada como certeza.
+            confianca: estimado ? Math.min(confiancaBase ?? 0.85, 0.85) : confiancaBase,
+            emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
+            categoria:
+              typeof i.categoria === "string" &&
+              (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
+                ? (i.categoria.trim() as CategoriaDeteccao)
+                : undefined,
+          };
+        });
       const { error: erroRegistro } = await sb
         .from("analises_foto")
         .insert({ user_id: context.userId, fotos: data.imagens.length });
