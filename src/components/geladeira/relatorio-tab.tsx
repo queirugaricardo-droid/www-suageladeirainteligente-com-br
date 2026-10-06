@@ -134,16 +134,22 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const quantidadeDetectada = (quantidade: number, unidade: string) =>
     unidade.toLowerCase() === "un"
       ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
-      : `${quantidade.toLocaleString("pt-BR")} ${unidade} detectados`;
+      : `≈ ${quantidade.toLocaleString("pt-BR")} ${unidade} (estimado)`;
 
-  const quantidadeComprar = (linha: { faltam: number; item: ItemIdeal }) =>
-    Math.round((linha.faltam || linha.item.quantidade) * frequencia * 100) / 100;
+  // Compra = estoque ideal para o período (ideal × frequência) menos o que já foi confirmado na geladeira.
+  const quantidadeComprar = (linha: { faltam: number; detectado: number; item: ItemIdeal }) =>
+    Math.max(0, Math.round((linha.item.quantidade * frequencia - linha.detectado) * 100) / 100);
+
+  const precoLinha = (linha: { faltam: number; detectado: number; item: ItemIdeal }) => {
+    const base = linha.faltam || linha.item.quantidade;
+    return base > 0 ? (precoDe(linha.item.nome) * quantidadeComprar(linha)) / base : 0;
+  };
 
   const total = useMemo(
     () =>
       faltantes
         .filter((l) => !comprados[l.item.id])
-        .reduce((soma, l) => soma + precoDe(l.item.nome) * frequencia, 0),
+        .reduce((soma, l) => soma + precoLinha(l), 0),
     [faltantes, comprados, precos, frequencia],
   );
 
@@ -596,7 +602,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     .filter((l) => l.item.categoria === c)
                     .map((l) => {
                       const marcado = !!comprados[l.item.id];
-                      const preco = precoDe(l.item.nome) * frequencia;
+                      const preco = precoLinha(l);
                       return (
                         <label
                           key={l.item.id}

@@ -27,6 +27,8 @@ export type ItemDetectado = {
   quantidade: number;
   unidade: string;
   confianca?: number | undefined;
+  /** true quando a quantidade é uma estimativa visual (peso/volume), não uma contagem. */
+  estimado?: boolean | undefined;
   emoji?: string | undefined;
   categoria?: CategoriaDeteccao | undefined;
 };
