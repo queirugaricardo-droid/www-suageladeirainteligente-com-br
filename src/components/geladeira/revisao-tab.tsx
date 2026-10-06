@@ -65,7 +65,7 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
         const unidade = item.unidade.toLowerCase();
         const passo = unidade === "g" || unidade === "ml" ? 50 : unidade === "kg" || unidade === "l" ? 0.1 : 1;
         const quantidade = Math.max(0, Math.round((item.quantidade + direcao * passo) * 100) / 100);
-        return { ...item, quantidade, confianca: 1 };
+        return { ...item, quantidade, confianca: 1, estimado: false };
       }),
     );
   };
@@ -199,7 +199,9 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
                       <>
                         <p className="truncate font-semibold">{item.nome}</p>
                         <p className="text-sm text-muted-foreground">
+                          {item.estimado ? "≈ " : ""}
                           {item.quantidade.toLocaleString("pt-BR")} {item.unidade}
+                          {item.estimado && <span className="ml-1 text-xs">(estimado, confira)</span>}
                         </p>
                         <Badge className={`mt-1 ${selo.classe}`}>{selo.texto}</Badge>
                       </>
