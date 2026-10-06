@@ -602,7 +602,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     .filter((l) => l.item.categoria === c)
                     .map((l) => {
                       const marcado = !!comprados[l.item.id];
-                      const preco = precoDe(l.item.nome) * frequencia;
+                      const preco = precoLinha(l);
                       return (
                         <label
                           key={l.item.id}
