@@ -30,7 +30,7 @@ function comprimir(arquivo: File): Promise<string> {
       const img = new Image();
       img.onerror = () => reject(new Error("Imagem inválida."));
       img.onload = () => {
-        const maxLado = 1280;
+        const maxLado = 2048;
         const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
         canvas.width = Math.round(img.width * escala);
@@ -38,7 +38,7 @@ function comprimir(arquivo: File): Promise<string> {
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Não consegui processar a imagem."));
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.82));
+        resolve(canvas.toDataURL("image/jpeg", 0.9));
       };
       img.src = String(leitor.result);
     };
