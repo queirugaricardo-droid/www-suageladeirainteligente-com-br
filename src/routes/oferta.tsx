@@ -82,7 +82,7 @@ const perguntas = [
   {
     pergunta: "Quantas fotos posso analisar?",
     resposta:
-      "O plano inclui até 2 fotos por mês para cada conta. Você pode usar dois ângulos da mesma geladeira na análise.",
+      "O plano mensal inclui até 50 fotos por mês (a conta gratuita tem 2). Você pode usar dois ângulos da mesma geladeira em cada análise.",
   },
   {
     pergunta: "A identificação da foto pode ser corrigida?",
@@ -152,7 +152,7 @@ function PaginaOferta() {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> 2 fotos por mês</span>
+              <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> 50 fotos por mês</span>
               <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> Estoque salvo na conta</span>
               <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> Lista no WhatsApp</span>
             </div>
@@ -246,7 +246,7 @@ function PaginaOferta() {
             </div>
             <ul className="mt-7 space-y-3 text-sm">
               {[
-                "Até 2 fotos por mês",
+                "Até 50 fotos por mês",
                 "Análise de alimentos com IA",
                 "Estoque ideal salvo na conta",
                 "Lista de compras categorizada",
