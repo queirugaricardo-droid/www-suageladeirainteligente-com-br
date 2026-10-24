@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { acessoPagoServidor } from "./payments.functions";
 
 export const consultarConta = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const [perfil, assinatura, pago] = await Promise.all([
     context.supabase.from("profiles").select("nome_completo, termos_aceitos_em, termos_versao").eq("id", context.userId).single(),
-    context.supabase.from("assinaturas").select("plano, status, acesso_inicio, acesso_fim, renovacao_em").eq("user_id", context.userId).single(),
-    context.supabase.rpc("tem_acesso_pago"),
+    context.supabase.from("assinaturas").select("plano, status, acesso_inicio, acesso_fim, renovacao_em, provedor_cliente_id, cancelar_no_fim").eq("user_id", context.userId).single(),
+    acessoPagoServidor(context.supabase).then(data => ({ data, error: null }), error => ({ data: false, error })),
   ]);
   if (perfil.error || assinatura.error || pago.error) throw new Error("Não foi possível carregar sua conta.");
   return { perfil: perfil.data, assinatura: assinatura.data, acessoPago: pago.data === true };
@@ -20,7 +21,7 @@ export const aceitarTermos = createServerFn({ method: "POST" }).middleware([requ
   });
 // Use this guard in each future paid feature handler, never just in its UI.
 export const verificarAcessoExclusivo = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data, error } = await context.supabase.rpc("tem_acesso_pago");
-  if (error || data !== true) throw new Error("Seu plano não possui acesso pago confirmado.");
+  const data = await acessoPagoServidor(context.supabase).catch(() => false);
+  if (data !== true) throw new Error("Seu plano não possui acesso pago confirmado.");
   return { permitido: true };
 });

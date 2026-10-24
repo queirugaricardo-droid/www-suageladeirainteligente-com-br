@@ -15,7 +15,10 @@
 4. In More → Users → Auth settings → Advanced add the exact external-domain callback patterns. Current managed preview and published domains are already allowed. Localhost test callbacks are not on the hosted allow-list.
 5. Cross-origin APIs, if required, must verify a bearer with Cloud Auth, use a strict origin allow-list, and scope all operations to that verified user ID. Do not accept a user ID in request data as authentication.
 
-## Payment integration not enabled
+## Payment integration (Stripe, test mode enabled)
+- Checkout: `/assinar` (authenticated, embedded). Webhook: `/api/public/payments/webhook`, signature-verified, re-reads the subscription from the provider and binds via the server-created Customer `metadata.userId`.
+- Entitlement: `tem_acesso_pago_ambiente(env)`; env comes from the build's publishable token, never the browser.
+
 - Choose/enable the actual provider, create the real product/price and associate checkout with the authenticated user server-side.
 - Verify webhooks against the raw signed payload; persist unique event IDs for idempotency; verify environment, product, currency and payment status with the provider before writes.
 - Only privileged provider handlers may update `assinaturas`; bind by a server-established customer/user mapping, never an untrusted metadata/user-ID alone.
