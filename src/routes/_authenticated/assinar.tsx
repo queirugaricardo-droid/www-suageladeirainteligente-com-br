@@ -16,7 +16,9 @@ export const Route = createFileRoute("/_authenticated/assinar")({
 
 function Assinar() {
   const criar = useServerFn(criarCheckoutPlano);
-  const [erro, setErro] = useState("");
+  const [inicial] = useState(() => { try { return { stripe: getStripe(), erro: "" }; } catch (e) { return { stripe: null, erro: e instanceof Error ? e.message : "Cobrança indisponível." }; } });
+  const stripe = inicial.stripe;
+  const [erro, setErro] = useState(inicial.erro);
   const fetchClientSecret = useCallback(async () => {
     try {
       const r = await criar({ data: { returnUrl: `${window.location.origin}/assinatura-retorno?session_id={CHECKOUT_SESSION_ID}` } });
@@ -28,8 +30,6 @@ function Assinar() {
       throw e;
     }
   }, [criar]);
-  let stripe: ReturnType<typeof getStripe> | null = null;
-  try { stripe = getStripe(); } catch (e) { if (!erro) setErro(e instanceof Error ? e.message : "Cobrança indisponível."); }
 
   return (
     <>
