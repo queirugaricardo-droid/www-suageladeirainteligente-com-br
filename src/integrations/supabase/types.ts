@@ -39,12 +39,15 @@ export type Database = {
         Row: {
           acesso_fim: string | null
           acesso_inicio: string | null
+          ambiente: string | null
+          cancelar_no_fim: boolean
           created_at: string
           id: string
           pagamento_verificado_em: string | null
           plano: string
           provedor: string | null
           provedor_assinatura_id: string | null
+          provedor_cliente_id: string | null
           renovacao_em: string | null
           status: string
           transacao_id: string | null
@@ -54,12 +57,15 @@ export type Database = {
         Insert: {
           acesso_fim?: string | null
           acesso_inicio?: string | null
+          ambiente?: string | null
+          cancelar_no_fim?: boolean
           created_at?: string
           id?: string
           pagamento_verificado_em?: string | null
           plano?: string
           provedor?: string | null
           provedor_assinatura_id?: string | null
+          provedor_cliente_id?: string | null
           renovacao_em?: string | null
           status?: string
           transacao_id?: string | null
@@ -69,12 +75,15 @@ export type Database = {
         Update: {
           acesso_fim?: string | null
           acesso_inicio?: string | null
+          ambiente?: string | null
+          cancelar_no_fim?: boolean
           created_at?: string
           id?: string
           pagamento_verificado_em?: string | null
           plano?: string
           provedor?: string | null
           provedor_assinatura_id?: string | null
+          provedor_cliente_id?: string | null
           renovacao_em?: string | null
           status?: string
           transacao_id?: string | null
@@ -274,6 +283,10 @@ export type Database = {
         Returns: string
       }
       tem_acesso_pago: { Args: never; Returns: boolean }
+      tem_acesso_pago_ambiente: {
+        Args: { p_ambiente: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
