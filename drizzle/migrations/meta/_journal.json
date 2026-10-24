@@ -29,6 +29,13 @@
       "when": 1792803506165,
       "tag": "0003_sincronizar_catalogo_estoque",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792803910342,
+      "tag": "0004_perfis_assinaturas_seguros",
+      "breakpoints": true
     }
   ]
 }
