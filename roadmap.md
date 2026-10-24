@@ -1,5 +1,10 @@
 # Geladeira Inteligente — tarefas
 
+## Pedido atual — catálogo e histórico
+- [ ] Criar catálogo privado e histórico de análises confirmadas, com segurança por conta
+- [ ] Integrar busca e edição do catálogo e consulta de relatórios anteriores
+- [ ] Validar salvamento, recarga e isolamento entre usuários
+
 - [x] Criar página estática de vendas do plano mensal em `/oferta`
 - [ ] Reformular navegação e início mobile-first com resumo do produto
 - [ ] Criar revisão dos alimentos detectados antes de salvar
