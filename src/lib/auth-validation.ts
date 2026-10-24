@@ -7,6 +7,9 @@ export const cadastroSchema = z.object({ nome: z.string().trim().min(3, "Informe
 export const novaSenhaSchema = z.object({ senha: passwordSchema, confirmar: z.string() }).refine(v => v.senha === v.confirmar, { message: "As senhas não coincidem.", path: ["confirmar"] });
 
 export function mensagemAuth(error: unknown) {
+  const text = error instanceof Error ? error.message : "";
+  if (text.includes("email address is not allowed")) return "Use um endereço de e-mail real que possa receber a confirmação.";
+  if (text.includes("Current password") || text.includes("current password")) return "Confira sua senha atual e tente novamente.";
   const code = typeof error === "object" && error && "code" in error ? String(error.code) : "";
   if (code === "invalid_credentials") return "E-mail ou senha incorretos.";
   if (code === "email_not_confirmed") return "Confirme seu e-mail antes de entrar. Confira também a caixa de spam.";

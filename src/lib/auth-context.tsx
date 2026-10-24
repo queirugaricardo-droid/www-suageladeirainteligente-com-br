@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "@tanstack/react-router";
+import { useRouter, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 type Sessao = { usuario: User | null; pronto: boolean };
@@ -10,7 +10,9 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
   const [sessao, setSessao] = useState<Sessao>({ usuario: null, pronto: false });
   const queryClient = useQueryClient();
   const router = useRouter();
+  const paginaEstatica = useRouterState({ select: state => state.location.pathname === "/oferta" });
   useEffect(() => {
+    if (paginaEstatica) { setSessao({ usuario: null, pronto: true }); return; }
     if (window.location.pathname === "/reset-password" && new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery") sessionStorage.setItem("geladeira:recovery", "true");
     let ativo = true;
     let versao = 0;
@@ -33,7 +35,7 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
       if (ativo && inicial === versao) setSessao({ usuario: data.user ?? null, pronto: true });
     }).catch(() => { if (ativo && inicial === versao) setSessao({ usuario: null, pronto: true }); });
     return () => { ativo = false; data.subscription.unsubscribe(); };
-  }, [queryClient, router]);
+  }, [queryClient, router, paginaEstatica]);
   return <Context.Provider value={sessao}>{children}</Context.Provider>;
 }
 export function useSessaoContext() { return useContext(Context); }

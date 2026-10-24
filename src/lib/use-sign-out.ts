@@ -10,6 +10,7 @@ export function useSignOut() {
     client.clear();
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    sessionStorage.removeItem("geladeira:recovery");
     await navigate({ to: "/auth", replace: true });
   };
 }
