@@ -15,6 +15,13 @@
       "when": 1790987370984,
       "tag": "0001_create_estoque_ideal",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792803333463,
+      "tag": "0002_catalogo_e_historico_confirmado",
+      "breakpoints": true
     }
   ]
 }
