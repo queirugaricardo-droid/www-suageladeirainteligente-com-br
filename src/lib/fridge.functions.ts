@@ -3,17 +3,18 @@ import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { limiteFotos } from "./plano";
+import { acessoPagoServidor } from "./payments.functions";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
-export const LIMITE_FOTOS_MES = 2;
 
 function inicioDoMes() {
   const d = new Date();
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
 }
 
-type ClienteSb = { from: (t: "analises_foto") => any };
+type ClienteSb = { from: (t: "analises_foto") => any; rpc: (...a: any[]) => any };
 
 async function fotosUsadasNoMes(supabase: ClienteSb, userId: string) {
   const { data, error } = await supabase
@@ -28,8 +29,10 @@ async function fotosUsadasNoMes(supabase: ClienteSb, userId: string) {
 export const consultarUsoFotos = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const usadas = await fotosUsadasNoMes(context.supabase as unknown as ClienteSb, context.userId);
-    return { usadas, limite: LIMITE_FOTOS_MES, restantes: Math.max(0, LIMITE_FOTOS_MES - usadas) };
+    const sb = context.supabase as unknown as ClienteSb;
+    const [usadas, pago] = await Promise.all([fotosUsadasNoMes(sb, context.userId), acessoPagoServidor(sb)]);
+    const limite = limiteFotos(pago);
+    return { usadas, limite, pago, restantes: Math.max(0, limite - usadas) };
   });
 
 function criarProvedor() {
@@ -70,15 +73,16 @@ export const analisarFoto = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const sb = context.supabase as unknown as ClienteSb;
-      const usadas = await fotosUsadasNoMes(sb, context.userId);
-      const restantes = LIMITE_FOTOS_MES - usadas;
+      const [usadas, pago] = await Promise.all([fotosUsadasNoMes(sb, context.userId), acessoPagoServidor(sb)]);
+      const limite = limiteFotos(pago);
+      const restantes = limite - usadas;
       if (data.imagens.length > restantes) {
         return {
           ok: false as const,
           itens: [],
           erro:
             restantes <= 0
-              ? `Você já usou suas ${LIMITE_FOTOS_MES} fotos deste mês. O limite renova no dia 1º.`
+              ? `Você já usou suas ${limite} fotos deste mês. O limite renova no dia 1º.`
               : `Você só tem ${restantes} foto restante neste mês. Remova uma das fotos.`,
         };
       }

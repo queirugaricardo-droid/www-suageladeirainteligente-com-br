@@ -60,11 +60,13 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const { usuario, pronto } = useSessao();
   const sair = useSignOut();
   const [restantes, setRestantes] = useState<number | null>(null);
+  const [limite, setLimite] = useState(2);
 
   const atualizarUso = useCallback(async () => {
     try {
       const uso = await consultarUso();
       setRestantes(uso.restantes);
+      setLimite(uso.limite);
     } catch {
       setRestantes(null);
     }
@@ -105,7 +107,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
       return;
     }
     if (restantes !== null && fotos.length > restantes) {
-      setErro(restantes === 0 ? "Você já usou suas 2 fotos deste mês. O limite renova no dia 1º." : `Você só tem ${restantes} foto restante neste mês.`);
+      setErro(restantes === 0 ? `Você já usou suas ${limite} fotos deste mês. O limite renova no dia 1º.` : `Você só tem ${restantes} foto restante neste mês.`);
       return;
     }
     if (estoque.length === 0) {
@@ -152,7 +154,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
         ) : usuario ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-sm">
             <span>
-              {restantes === null ? "Verificando seu limite..." : `${restantes} de 2 fotos restantes neste mês`}
+              {restantes === null ? "Verificando seu limite..." : `${restantes} de ${limite} fotos restantes neste mês`}
             </span>
             <Button variant="ghost" size="sm" onClick={() => void sair().catch(() => toast.error("Não foi possível sair da conta."))}>
               Sair ({usuario.email})

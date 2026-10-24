@@ -257,10 +257,10 @@ function PaginaOferta() {
               ))}
             </ul>
             <Button asChild size="lg" className="mt-8 h-12 w-full text-base">
-              <Link to="/auth">Quero começar <ArrowRight /></Link>
+              <Link to="/assinar">Assinar por R$ 19,90/mês <ArrowRight /></Link>
             </Button>
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
-              Crie sua conta para experimentar o aplicativo. A contratação será apresentada quando a cobrança estiver disponível.
+              Entre ou crie sua conta para assinar. 50 fotos por mês, cancele quando quiser.
             </p>
           </div>
         </div>
