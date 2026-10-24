@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowRight,
   Bot,
+  BookOpen,
   Camera,
   CheckCircle2,
   History,
@@ -20,6 +21,10 @@ import { EstoqueTab } from "@/components/geladeira/estoque-tab";
 import { AnaliseTab, type AnaliseTabHandle } from "@/components/geladeira/analise-tab";
 import { RelatorioTab } from "@/components/geladeira/relatorio-tab";
 import { RevisaoTab } from "@/components/geladeira/revisao-tab";
+import { CatalogoTab } from "@/components/geladeira/catalogo-tab";
+import { HistoricoTab } from "@/components/geladeira/historico-tab";
+import { useFoodData } from "@/lib/use-food-data";
+import { toast } from "sonner";
 import { useGeladeira } from "@/lib/use-geladeira";
 import { gerarRelatorio } from "@/lib/fridge-logic";
 import type { ItemDetectado } from "@/lib/fridge-types";
@@ -49,6 +54,10 @@ export const Route = createFileRoute("/")({
 
 function Index() {
   const { estoque, relatorio, setRelatorio, adicionar, atualizar, remover } = useGeladeira();
+  const dados = useFoodData();
+  const [salvandoAnalise, setSalvandoAnalise] = useState(false);
+  const confirmacaoId = useRef<string | null>(null);
+  const [exemploAtivo, setExemploAtivo] = useState(false);
   const [aba, setAba] = useState("inicio");
   const [menuAberto, setMenuAberto] = useState(false);
   const [rascunho, setRascunho] = useState<ItemDetectado[] | null>(null);
@@ -70,14 +79,30 @@ function Index() {
       { nome: "Iogurte natural", quantidade: 2, unidade: "un", confianca: 0.91, emoji: "🥣" },
     ];
     setRascunho(exemplo);
+    setExemploAtivo(true);
     setAba("revisao");
     setMenuAberto(false);
   };
 
-  const confirmarRevisao = (itens: ItemDetectado[]) => {
-    setRelatorio(gerarRelatorio(estoque, itens));
-    setRascunho(null);
-    setAba("relatorio");
+  const confirmarRevisao = async (itens: ItemDetectado[]) => {
+    if (salvandoAnalise) return;
+    const novo = gerarRelatorio(estoque, itens);
+    setSalvandoAnalise(true);
+    try {
+      if (!exemploAtivo) {
+        confirmacaoId.current ??= crypto.randomUUID();
+        await dados.confirmarAnalise(novo, confirmacaoId.current);
+      }
+      setRelatorio(novo);
+      setRascunho(null);
+      confirmacaoId.current = null;
+      setAba("relatorio");
+      toast.success(exemploAtivo ? "Exemplo aberto; não foi salvo no histórico da conta." : dados.usuario ? "Análise e alimentos salvos na sua conta." : "Relatório salvo neste aparelho.");
+    } catch {
+      toast.error("Não foi possível salvar na conta. Sua revisão foi mantida; tente novamente.");
+    } finally {
+      setSalvandoAnalise(false);
+    }
   };
 
   const navegar = (destino: string) => {
@@ -109,6 +134,8 @@ function Index() {
               <History /> Último relatório
             </Button>
             <Button onClick={fotografar}><Camera /> Analisar agora</Button>
+            <Button variant={aba === "catalogo" ? "secondary" : "ghost"} onClick={() => navegar("catalogo")}><BookOpen /> Catálogo</Button>
+            <Button variant={aba === "historico" ? "secondary" : "ghost"} onClick={() => navegar("historico")}><History /> Histórico</Button>
           </nav>
 
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuAberto((v) => !v)} aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}>
@@ -121,6 +148,8 @@ function Index() {
             <Button variant="ghost" className="justify-start" onClick={() => navegar("estoque")}><Refrigerator /> Estoque ideal</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("relatorio")}><History /> Último relatório</Button>
             <Button className="justify-start" onClick={fotografar}><Camera /> Tirar foto da geladeira</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navegar("catalogo")}><BookOpen /> Catálogo de alimentos</Button>
+            <Button variant="ghost" className="justify-start" onClick={() => navegar("historico")}><History /> Histórico de análises</Button>
           </nav>
         )}
       </header>
@@ -225,6 +254,7 @@ function Index() {
               adicionar={adicionar}
               atualizar={atualizar}
               remover={remover}
+              catalogo={dados.catalogo.data ?? []}
             />
           </TabsContent>
 
@@ -233,6 +263,8 @@ function Index() {
               ref={analiseRef}
               estoque={estoque}
               aoConcluir={(itens) => {
+                setExemploAtivo(false);
+                confirmacaoId.current = null;
                 setRascunho(itens);
                 setAba("revisao");
               }}
@@ -244,6 +276,7 @@ function Index() {
               <RevisaoTab
                 itens={rascunho}
                 aoConfirmar={confirmarRevisao}
+                salvando={salvandoAnalise}
                 aoVoltar={() => {
                   setRascunho(null);
                   setAba("analise");
@@ -271,6 +304,8 @@ function Index() {
               irParaAnalise={() => setAba("analise")}
             />
           </TabsContent>
+          <TabsContent value="catalogo"><CatalogoTab alimentos={dados.catalogo.data ?? []} conectado={Boolean(dados.usuario)} carregando={dados.catalogo.isLoading} erro={dados.catalogo.isError} tentar={() => void dados.catalogo.refetch()} salvar={dados.salvarAlimento} /></TabsContent>
+          <TabsContent value="historico"><HistoricoTab registros={dados.historico.data ?? []} conectado={Boolean(dados.usuario)} carregando={dados.historico.isLoading} erro={dados.historico.isError} tentar={() => void dados.historico.refetch()} /></TabsContent>
         </div>
       </Tabs>
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ESTOQUE_EXEMPLO } from "./fridge-logic";
+import { chaveDaConta, lerRelatorioSeguro } from "./food-data";
 import type { ItemIdeal, Relatorio } from "./fridge-types";
 import { useSessao } from "./use-sessao";
 
@@ -40,23 +40,30 @@ function paraItem(linha: LinhaEstoque): ItemIdeal {
 export function useGeladeira() {
   const { usuario, pronto: sessaoPronta } = useSessao();
   const [pronto, setPronto] = useState(false);
-  const [estoque, setEstoque] = useState<ItemIdeal[]>(ESTOQUE_EXEMPLO);
+  const [estoque, setEstoque] = useState<ItemIdeal[]>([]);
   const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
   const usuarioId = usuario?.id ?? null;
   const carregadoPara = useRef<string | null>(null);
+  const [contaCarregada, setContaCarregada] = useState<string | null | undefined>(undefined);
+  const chaveEstoque = chaveDaConta(CHAVE_ESTOQUE, usuarioId);
+  const chaveRelatorio = chaveDaConta(CHAVE_RELATORIO, usuarioId);
 
   // Carga inicial: localStorage sempre; banco quando houver sessão.
   useEffect(() => {
     if (!sessaoPronta) return;
     let ativo = true;
+    setPronto(false);
+    setEstoque([]);
+    setRelatorio(null);
 
     async function carregar() {
-      const local = ler<ItemIdeal[]>(CHAVE_ESTOQUE, ESTOQUE_EXEMPLO);
+      const local = ler<ItemIdeal[]>(chaveEstoque, []);
       if (usuarioId && carregadoPara.current !== usuarioId) {
         carregadoPara.current = usuarioId;
         const { data, error } = await supabase
           .from("estoque_ideal")
           .select("id, nome, quantidade, unidade, categoria, emoji")
+          .eq("user_id", usuarioId)
           .order("created_at", { ascending: true });
         if (!ativo) return;
         if (!error && data) {
@@ -89,7 +96,13 @@ export function useGeladeira() {
         setEstoque(local);
       }
       if (!ativo) return;
-      setRelatorio(ler<Relatorio | null>(CHAVE_RELATORIO, null));
+      const { data: anteriores, error: erroHistorico } = usuarioId
+        ? await supabase.from("historico_analises").select("relatorio").eq("user_id", usuarioId).order("created_at", { ascending: false }).limit(1)
+        : { data: null, error: null };
+      if (!ativo) return;
+      setRelatorio(lerRelatorioSeguro(anteriores?.[0]?.relatorio ?? ler<Relatorio | null>(chaveRelatorio, null)));
+      if (erroHistorico) console.warn("Não foi possível carregar o último relatório da conta.");
+      setContaCarregada(usuarioId);
       setPronto(true);
     }
 
@@ -101,14 +114,14 @@ export function useGeladeira() {
 
   // Espelho local (offline / deslogado).
   useEffect(() => {
-    if (pronto) window.localStorage.setItem(CHAVE_ESTOQUE, JSON.stringify(estoque));
-  }, [estoque, pronto]);
+    if (pronto && contaCarregada === usuarioId) window.localStorage.setItem(chaveEstoque, JSON.stringify(estoque));
+  }, [estoque, pronto, contaCarregada, usuarioId, chaveEstoque]);
 
   useEffect(() => {
-    if (!pronto) return;
-    if (relatorio) window.localStorage.setItem(CHAVE_RELATORIO, JSON.stringify(relatorio));
-    else window.localStorage.removeItem(CHAVE_RELATORIO);
-  }, [relatorio, pronto]);
+    if (!pronto || contaCarregada !== usuarioId) return;
+    if (relatorio) window.localStorage.setItem(chaveRelatorio, JSON.stringify(relatorio));
+    else window.localStorage.removeItem(chaveRelatorio);
+  }, [relatorio, pronto, contaCarregada, usuarioId, chaveRelatorio]);
 
   const adicionar = useCallback(
     (item: Omit<ItemIdeal, "id">) => {
