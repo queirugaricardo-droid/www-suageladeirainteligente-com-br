@@ -36,6 +36,13 @@
       "when": 1792803910342,
       "tag": "0004_perfis_assinaturas_seguros",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792804182152,
+      "tag": "0005_restringir_grants_contas",
+      "breakpoints": true
     }
   ]
 }
