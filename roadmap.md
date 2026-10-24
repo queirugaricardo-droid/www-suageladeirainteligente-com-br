@@ -7,7 +7,9 @@
 - [x] Documentar integração comercial entre domínios sem simular pagamentos
 - [x] Testar validações, login inválido, solicitação de recuperação, páginas privadas, permissões e celular
 - [ ] Testar cadastro confirmado, duplicação, login válido, sessão, troca de senha e isolamento entre duas contas — bloqueado: não há conta confirmada nem caixa de e-mail de teste disponível
-- [ ] Conectar e testar cobrança e acesso pago — bloqueado: provedor, produto/permissões e domínios comerciais ainda não configurados
+- [x] Ativar cobrança de teste (R$ 19,90/mês, 50 fotos), checkout, confirmação no servidor e gerenciamento da assinatura
+- [ ] Testar uma compra de teste ponta a ponta — bloqueado: não há conta cadastrada para entrar
+- [ ] Receber pagamentos reais — bloqueado: o dono precisa concluir a ativação na aba de Pagamentos
 - [ ] Finalizar termos e privacidade — bloqueado: faltam identificação legal, contato e política de retenção do operador
 
 ## Pedido atual — catálogo e histórico
