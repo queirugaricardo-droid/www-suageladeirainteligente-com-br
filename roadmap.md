@@ -1,5 +1,15 @@
 # Geladeira Inteligente — tarefas
 
+## Pedido atual — autenticação profissional
+- [x] Corrigir apresentação do login e completar cadastro com nome, termos, confirmação e recuperação de senha
+- [x] Criar perfil protegido, sessão consistente e encerramento seguro
+- [x] Preparar assinatura privada e validação legítima de acesso pago
+- [x] Documentar integração comercial entre domínios sem simular pagamentos
+- [x] Testar validações, login inválido, solicitação de recuperação, páginas privadas, permissões e celular
+- [ ] Testar cadastro confirmado, duplicação, login válido, sessão, troca de senha e isolamento entre duas contas — bloqueado: não há conta confirmada nem caixa de e-mail de teste disponível
+- [ ] Conectar e testar cobrança e acesso pago — bloqueado: provedor, produto/permissões e domínios comerciais ainda não configurados
+- [ ] Finalizar termos e privacidade — bloqueado: faltam identificação legal, contato e política de retenção do operador
+
 ## Pedido atual — catálogo e histórico
 - [x] Criar catálogo privado e histórico de análises confirmadas, com segurança por conta
 - [x] Integrar busca e edição do catálogo e consulta de relatórios anteriores

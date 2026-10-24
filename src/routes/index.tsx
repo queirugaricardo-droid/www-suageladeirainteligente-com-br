@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Bot,
@@ -15,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { EstoqueTab } from "@/components/geladeira/estoque-tab";
 import { AnaliseTab, type AnaliseTabHandle } from "@/components/geladeira/analise-tab";
@@ -113,9 +112,8 @@ function Index() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-background">
-      <Toaster position="top-center" />
       <header className="relative z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-20 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <button className="flex items-center gap-3" onClick={() => navegar("inicio")} aria-label="Ir para o início">
             <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
               <Refrigerator className="size-5" />
@@ -137,6 +135,7 @@ function Index() {
             <Button variant={aba === "catalogo" ? "secondary" : "ghost"} onClick={() => navegar("catalogo")}><BookOpen /> Catálogo</Button>
             <Button variant={aba === "historico" ? "secondary" : "ghost"} onClick={() => navegar("historico")}><History /> Histórico</Button>
           </nav>
+          <Button asChild variant="outline" size="sm" className="hidden md:inline-flex"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar"}</Link></Button>
 
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuAberto((v) => !v)} aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}>
             {menuAberto ? <X /> : <Menu />}
@@ -150,6 +149,7 @@ function Index() {
             <Button className="justify-start" onClick={fotografar}><Camera /> Tirar foto da geladeira</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("catalogo")}><BookOpen /> Catálogo de alimentos</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("historico")}><History /> Histórico de análises</Button>
+            <Button asChild variant="outline" className="justify-start"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar / criar conta"}</Link></Button>
           </nav>
         )}
       </header>

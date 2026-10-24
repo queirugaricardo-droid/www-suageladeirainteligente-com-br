@@ -14,3 +14,7 @@
 - Keep the private food catalogue separate from ideal inventory; confirmed detections must never automatically create shopping targets.
 - Save immutable confirmed report snapshots and normalized detected items atomically through the authenticated database RPC; photo quota logs stay separate, and report edits do not create new analyses.
 - Scope browser inventory/report caches and query keys by account identity; never import an unscoped visitor cache automatically into an account.
+- Own session hydration and identity-change invalidation in one root provider; sign-out cancels queries, clears protected cache, ends the session, then replaces history with the login page.
+- Keep public sales/auth/legal routes independent from protected account routes under the Cloud Auth pathless gate; private server functions always validate the bearer themselves.
+- Store profile consent separately from read-only subscription entitlements; customers cannot write paid-access fields, and future payment webhooks must verify provider signatures before privileged updates.
+- Cross-domain commercial integration shares the account provider, not browser storage; never transfer tokens in links, accept client purchase claims, or enable broad CORS without an explicit domain allow-list.

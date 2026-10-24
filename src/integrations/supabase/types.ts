@@ -35,6 +35,54 @@ export type Database = {
         }
         Relationships: []
       }
+      assinaturas: {
+        Row: {
+          acesso_fim: string | null
+          acesso_inicio: string | null
+          created_at: string
+          id: string
+          pagamento_verificado_em: string | null
+          plano: string
+          provedor: string | null
+          provedor_assinatura_id: string | null
+          renovacao_em: string | null
+          status: string
+          transacao_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acesso_fim?: string | null
+          acesso_inicio?: string | null
+          created_at?: string
+          id?: string
+          pagamento_verificado_em?: string | null
+          plano?: string
+          provedor?: string | null
+          provedor_assinatura_id?: string | null
+          renovacao_em?: string | null
+          status?: string
+          transacao_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acesso_fim?: string | null
+          acesso_inicio?: string | null
+          created_at?: string
+          id?: string
+          pagamento_verificado_em?: string | null
+          plano?: string
+          provedor?: string | null
+          provedor_assinatura_id?: string | null
+          renovacao_em?: string | null
+          status?: string
+          transacao_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       catalogo_alimentos: {
         Row: {
           categoria: string
@@ -185,15 +233,47 @@ export type Database = {
         }
         Relationships: []
       }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          nome_completo: string
+          termos_aceitos_em: string | null
+          termos_versao: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          nome_completo?: string
+          termos_aceitos_em?: string | null
+          termos_versao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome_completo?: string
+          termos_aceitos_em?: string | null
+          termos_versao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      aceitar_termos_conta: {
+        Args: { p_aceito: boolean; p_nome: string }
+        Returns: undefined
+      }
       salvar_analise_confirmada: {
         Args: { p_id: string; p_relatorio: Json }
         Returns: string
       }
+      tem_acesso_pago: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
