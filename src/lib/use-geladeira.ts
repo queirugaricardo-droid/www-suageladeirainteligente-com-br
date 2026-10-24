@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { chaveDaConta, lerRelatorioSeguro } from "./food-data";
 import type { ItemIdeal, Relatorio } from "./fridge-types";
@@ -43,7 +43,6 @@ export function useGeladeira() {
   const [estoque, setEstoque] = useState<ItemIdeal[]>([]);
   const [relatorio, setRelatorio] = useState<Relatorio | null>(null);
   const usuarioId = usuario?.id ?? null;
-  const carregadoPara = useRef<string | null>(null);
   const [contaCarregada, setContaCarregada] = useState<string | null | undefined>(undefined);
   const chaveEstoque = chaveDaConta(CHAVE_ESTOQUE, usuarioId);
   const chaveRelatorio = chaveDaConta(CHAVE_RELATORIO, usuarioId);
@@ -58,8 +57,7 @@ export function useGeladeira() {
 
     async function carregar() {
       const local = ler<ItemIdeal[]>(chaveEstoque, []);
-      if (usuarioId && carregadoPara.current !== usuarioId) {
-        carregadoPara.current = usuarioId;
+      if (usuarioId) {
         const { data, error } = await supabase
           .from("estoque_ideal")
           .select("id, nome, quantidade, unidade, categoria, emoji")
@@ -92,7 +90,6 @@ export function useGeladeira() {
           setEstoque(local);
         }
       } else if (!usuarioId) {
-        carregadoPara.current = null;
         setEstoque(local);
       }
       if (!ativo) return;
@@ -110,7 +107,7 @@ export function useGeladeira() {
     return () => {
       ativo = false;
     };
-  }, [sessaoPronta, usuarioId]);
+  }, [sessaoPronta, usuarioId, chaveEstoque, chaveRelatorio]);
 
   // Espelho local (offline / deslogado).
   useEffect(() => {
