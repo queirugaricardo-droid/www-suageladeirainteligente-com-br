@@ -25,3 +25,12 @@
 
 ## Legal/operator configuration still required
 The included terms/privacy text is an initial operational draft, not legal advice. The operator must supply legal entity/name, contact channel, retention/deletion policy and final subscription terms before commercial launch. Do not invent these details.
+
+## Verification performed
+- 12 local validation/security-rule tests passed.
+- Browser: invalid login returns an actionable error; password visibility works; mismatched passwords and missing consent are blocked; visitor `/conta` redirects to `/auth`; reset without a recovery session is blocked; reset request accepted with anti-enumeration message.
+- Mobile signup at 390×844 has no horizontal overflow. No runtime errors in tested public flows. `/oferta` performs zero auth/database requests after hydration.
+- Database readback: authenticated customers have no INSERT/UPDATE/DELETE grants on subscriptions; anonymous users have no profile SELECT grant; consent fields cannot be updated directly; profile name may be edited by its owner through RLS.
+- Real signup with a reserved test domain was rejected by the hosted service, which requires a deliverable email. No account was created. Valid login, confirmed signup, duplicate registration, email delivery/link completion, signed-in logout/password change and two-account RLS tests remain unverified until a confirmed test account is available.
+- HIBP/current-password hosted settings were not changed because their coupled current values are unavailable. App password changes collect the current password. Do not claim those hosted toggles have been enabled.
+- Database linter flags the intentional authenticated consent SECURITY DEFINER function; it validates inputs and always targets auth.uid(), never a client-provided user ID.
