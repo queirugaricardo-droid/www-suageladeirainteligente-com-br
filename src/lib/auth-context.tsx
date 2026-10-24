@@ -11,12 +11,14 @@ export function SessaoProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   useEffect(() => {
+    if (window.location.pathname === "/reset-password" && new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery") sessionStorage.setItem("geladeira:recovery", "true");
     let ativo = true;
     let versao = 0;
     const { data } = supabase.auth.onAuthStateChange((evento, session) => {
       versao++;
       if (!ativo) return;
       setSessao({ usuario: session?.user ?? null, pronto: true });
+      if (evento === "PASSWORD_RECOVERY") sessionStorage.setItem("geladeira:recovery", "true");
       if (!["SIGNED_IN", "SIGNED_OUT", "USER_UPDATED"].includes(evento)) return;
       // Never await auth work inside this synchronous provider callback.
       queueMicrotask(() => {
