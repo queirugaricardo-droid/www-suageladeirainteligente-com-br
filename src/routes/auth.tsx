@@ -1,11 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AuthLayout } from "@/components/auth/auth-layout";
+import { PasswordInput } from "@/components/auth/password-input";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { loginSchema, mensagemAuth } from "@/lib/auth-validation";
+import { useSessao } from "@/lib/use-sessao";
+import "@lovable.dev/cloud-auth-js/styles.css";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -23,99 +28,74 @@ export const Route = createFileRoute("/auth")({
 
 function PaginaAuth() {
   const navigate = useNavigate();
-  const [modo, setModo] = useState<"entrar" | "criar">("entrar");
+  const { usuario, pronto } = useSessao();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  useEffect(() => { if (pronto && usuario) void navigate({ to: "/conta", replace: true }); }, [usuario, pronto, navigate]);
 
-  const enviar = async (e: React.FormEvent) => {
+  const enviar = async (e: import("react").FormEvent) => {
     e.preventDefault();
-    if (!email.includes("@") || senha.length < 6) {
-      toast.error("Informe um e-mail válido e senha com pelo menos 6 caracteres.");
+    setErro("");
+    const valid = loginSchema.safeParse({ email, senha });
+    if (!valid.success) {
+      setErro(valid.error.issues[0]?.message ?? "Confira os dados.");
       return;
     }
     setCarregando(true);
     try {
-      if (modo === "entrar") {
-        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
+        const { error } = await supabase.auth.signInWithPassword({ email: valid.data.email, password: valid.data.senha });
         if (error) throw error;
-        toast.success("Bem-vindo de volta!");
-        navigate({ to: "/" });
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password: senha,
-          options: { emailRedirectTo: window.location.origin },
-        });
-        if (error) throw error;
-        toast.success("Conta criada! Confirme pelo link enviado ao seu e-mail.");
-        setModo("entrar");
-      }
+        await navigate({ to: "/conta", replace: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      toast.error(msg.includes("Invalid login") ? "E-mail ou senha incorretos." : msg || "Não foi possível continuar.");
+      setErro(mensagemAuth(err));
     } finally {
       setCarregando(false);
     }
   };
 
-  const google = async () => {
-    const r = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
-    if (r.error) {
-      toast.error("Não foi possível entrar com Google.");
-      return;
-    }
-    if (r.redirected) return;
-    navigate({ to: "/" });
+  const social = async (provider: "google" | "lovable") => {
+    setCarregando(true); setErro("");
+    try {
+      const r = await lovable.auth.signInWithOAuth(provider, { redirect_uri: `${window.location.origin}/auth/callback` });
+      if (r.error) throw r.error;
+      if (r.redirected) return;
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) throw new Error("Sem sessão");
+      await navigate({ to: "/conta", replace: true });
+    } catch { setErro("Não foi possível entrar com esse serviço. Tente novamente."); }
+    finally { setCarregando(false); }
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">{modo === "entrar" ? "Entrar" : "Criar conta"}</CardTitle>
-          <p className="text-sm text-muted-foreground">Cada conta pode analisar até 2 fotos por mês.</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button variant="outline" className="w-full" onClick={google}>
+    <AuthLayout titulo="Bem-vindo de volta" subtitulo="Entre para acessar seu estoque e histórico de análises.">
+          <Button variant="outline" className="h-11 w-full" disabled={carregando} onClick={() => void social("google")}>
             Continuar com Google
           </Button>
+          <Button type="button" className="lovable-auth-button w-full" disabled={carregando} onClick={() => void social("lovable")}>Continue with Lovable</Button>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou entre com e-mail<span className="h-px flex-1 bg-border" /></div>
           <form onSubmit={enviar} className="space-y-3">
-            <input
+            <div className="space-y-2"><Label htmlFor="login-email">E-mail</Label><Input
+              id="login-email"
               type="email"
               placeholder="seu@email.com"
               value={email}
               maxLength={255}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
+              className="h-11"
+              autoComplete="email"
               required
-            />
-            <input
-              type="password"
-              placeholder="Senha (mín. 6 caracteres)"
-              value={senha}
-              maxLength={72}
-              onChange={(e) => setSenha(e.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm"
-              required
-            />
+            /></div>
+            <PasswordInput id="login-senha" label="Senha" autoComplete="current-password" value={senha} onChange={setSenha} />
+            <Link to="/recuperar-senha" className="block text-right text-sm text-primary">Esqueci minha senha</Link>
+            {erro && <p role="alert" className="text-sm text-destructive">{erro}</p>}
             <Button type="submit" className="w-full" disabled={carregando}>
               {carregando && <Loader2 className="size-4 animate-spin" />}
-              {modo === "entrar" ? "Entrar" : "Criar conta"}
+              {carregando ? "Entrando…" : "Entrar"}
             </Button>
           </form>
-          <button
-            type="button"
-            className="w-full text-sm text-primary underline-offset-4 hover:underline"
-            onClick={() => setModo(modo === "entrar" ? "criar" : "entrar")}
-          >
-            {modo === "entrar" ? "Não tem conta? Criar agora" : "Já tem conta? Entrar"}
-          </button>
-          <Link to="/" className="block text-center text-sm text-muted-foreground">
-            Voltar ao início
-          </Link>
-        </CardContent>
-      </Card>
-    </main>
+          <p className="text-center text-sm text-muted-foreground">Não tem conta? <Link to="/cadastro" className="font-semibold text-primary">Criar agora</Link></p>
+    </AuthLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { useSignOut } from "@/lib/use-sign-out";
 import { useSessao } from "@/lib/use-sessao";
 import { Camera, ImagePlus, Loader2, Sparkles, X } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -58,6 +58,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const analisar = useServerFn(analisarFoto);
   const consultarUso = useServerFn(consultarUsoFotos);
   const { usuario, pronto } = useSessao();
+  const sair = useSignOut();
   const [restantes, setRestantes] = useState<number | null>(null);
 
   const atualizarUso = useCallback(async () => {
@@ -153,9 +154,9 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
             <span>
               {restantes === null ? "Verificando seu limite..." : `${restantes} de 2 fotos restantes neste mês`}
             </span>
-            <button type="button" className="text-muted-foreground underline-offset-4 hover:underline" onClick={() => supabase.auth.signOut()}>
+            <Button variant="ghost" size="sm" onClick={() => void sair().catch(() => toast.error("Não foi possível sair da conta."))}>
               Sair ({usuario.email})
-            </button>
+            </Button>
           </div>
         ) : null}
         <input
