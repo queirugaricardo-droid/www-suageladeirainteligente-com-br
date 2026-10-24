@@ -12,8 +12,8 @@ async function sincronizarAssinatura(subscriptionId: string, env: StripeEnv) {
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const customer = await stripe.customers.retrieve(customerId);
   // Bind only through the server-created Customer mapping.
-  const userId = !("deleted" in customer && customer.deleted) ? customer.metadata?.userId : undefined;
-  if (!userId || !/^[0-9a-f-]{36}$/i.test(userId) || sub.metadata?.userId !== userId) {
+  const userId = !("deleted" in customer && customer.deleted) ? customer.metadata?.["userId"] : undefined;
+  if (!userId || !/^[0-9a-f-]{36}$/i.test(userId) || sub.metadata?.["userId"] !== userId) {
     console.error("Assinatura sem vínculo de usuário confiável", sub.id);
     return;
   }

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -13,13 +14,15 @@ export const Route = createFileRoute("/_authenticated/assinatura-retorno")({
 
 // Access is shown only after the server-verified webhook updated the account.
 function Retorno() {
+  const [inicio] = useState(() => Date.now());
   const consultar = useServerFn(consultarConta);
   const conta = useQuery({
     queryKey: ["conta-retorno"],
     queryFn: () => consultar(),
-    refetchInterval: (q) => (q.state.data?.acessoPago || q.state.dataUpdateCount > 20 ? false : 3000),
+    refetchInterval: (q) => (q.state.data?.acessoPago || q.state.dataUpdatedAt - inicio > 60_000 ? false : 3000),
   });
   const pago = conta.data?.acessoPago;
+  const esgotado = Date.now() - inicio > 60_000 && conta.dataUpdatedAt - inicio > 60_000;
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center gap-4 px-5 text-center">
       {pago ? (
@@ -29,7 +32,7 @@ function Retorno() {
           <p className="text-muted-foreground">Agora você tem até 50 fotos por mês.</p>
           <Button asChild><Link to="/">Escanear minha geladeira</Link></Button>
         </>
-      ) : conta.data && conta.dataUpdateCount > 20 ? (
+      ) : conta.data && esgotado ? (
         <>
           <h1 className="text-2xl font-bold">Ainda estamos confirmando</h1>
           <p className="text-muted-foreground">O pagamento pode levar alguns minutos para ser confirmado. Confira em Minha conta.</p>

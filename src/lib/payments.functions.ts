@@ -5,7 +5,7 @@ import { ambienteDoToken, PRECO_PLANO_ID } from "@/lib/plano";
 
 // The environment comes from this build's token, never from the browser.
 function ambienteServidor() {
-  const env = ambienteDoToken(import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN as string | undefined);
+  const env = ambienteDoToken(import.meta.env["VITE_PAYMENTS_CLIENT_TOKEN"] as string | undefined);
   if (!env) throw new Error("A cobrança ainda não está ativada nesta versão do site.");
   return env;
 }
@@ -15,12 +15,13 @@ type Stripe = ReturnType<typeof createStripeClient>;
 async function resolverCliente(stripe: Stripe, userId: string, email?: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(userId)) throw new Error("Invalid userId");
   const found = await stripe.customers.search({ query: `metadata['userId']:'${userId}'`, limit: 1 });
-  if (found.data.length) return found.data[0].id;
+  const f = found.data[0];
+  if (f) return f.id;
   if (email) {
     const existing = await stripe.customers.list({ email, limit: 1 });
-    if (existing.data.length) {
-      const c = existing.data[0];
-      if (c.metadata?.userId !== userId) await stripe.customers.update(c.id, { metadata: { ...c.metadata, userId } });
+    const c = existing.data[0];
+    if (c) {
+      if (c.metadata?.["userId"] !== userId) await stripe.customers.update(c.id, { metadata: { ...c.metadata, userId } });
       return c.id;
     }
   }
@@ -83,7 +84,7 @@ export const criarPortalAssinatura = createServerFn({ method: "POST" })
 
 /** Server-side photo allowance used by the analysis handler. */
 export async function acessoPagoServidor(supabase: { rpc: (...a: any[]) => any }) {
-  const env = ambienteDoToken(import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN as string | undefined);
+  const env = ambienteDoToken(import.meta.env["VITE_PAYMENTS_CLIENT_TOKEN"] as string | undefined);
   if (!env) return false;
   const { data, error } = await supabase.rpc("tem_acesso_pago_ambiente", { p_ambiente: env });
   if (error) throw new Error("Não consegui verificar seu plano.");
