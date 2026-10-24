@@ -21,7 +21,8 @@ import type { CategoriaDeteccao, ItemDetectado } from "@/lib/fridge-types";
 
 type Props = {
   itens: ItemDetectado[];
-  aoConfirmar: (itens: ItemDetectado[]) => void;
+  aoConfirmar: (itens: ItemDetectado[]) => void | Promise<void>;
+  salvando?: boolean;
   aoVoltar: () => void;
 };
 
@@ -34,7 +35,7 @@ function seloConfianca(confianca?: number) {
   return { texto: "Revisar", classe: "bg-chart-4/25 text-chart-4", revisar: true };
 }
 
-export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
+export function RevisaoTab({ itens, aoConfirmar, aoVoltar, salvando = false }: Props) {
   const [lista, setLista] = useState<ItemDetectado[]>(itens);
   const [editando, setEditando] = useState<number | null>(null);
   const [nomeEditado, setNomeEditado] = useState("");
@@ -52,7 +53,7 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
     });
     return CATEGORIAS_DETECCAO.filter((c) => mapa.has(c)).map((c) => ({
       categoria: c,
-      itens: mapa.get(c)!,
+      itens: mapa.get(c) ?? [],
     }));
   }, [lista]);
 
@@ -129,7 +130,6 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
       return;
     }
     aoConfirmar(lista);
-    toast.success("Análise confirmada! Relatório e lista de compras atualizados.");
   };
 
   return (
@@ -272,11 +272,11 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar }: Props) {
       </Card>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-        <Button variant="ghost" onClick={aoVoltar}>
+        <Button variant="ghost" disabled={salvando} onClick={aoVoltar}>
           <ArrowLeft className="size-4" /> Refazer foto
         </Button>
-        <Button size="lg" className="h-12" onClick={confirmar}>
-          <CheckCircle2 className="size-5" /> Confirmar e gerar relatório
+        <Button size="lg" className="h-12" disabled={salvando} onClick={confirmar}>
+          <CheckCircle2 className="size-5" /> {salvando ? "Salvando na conta…" : "Confirmar e gerar relatório"}
         </Button>
       </div>
     </div>

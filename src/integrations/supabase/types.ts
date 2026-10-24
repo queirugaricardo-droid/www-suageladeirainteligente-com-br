@@ -35,6 +35,45 @@ export type Database = {
         }
         Relationships: []
       }
+      catalogo_alimentos: {
+        Row: {
+          categoria: string
+          chave_nome: string | null
+          created_at: string
+          emoji: string | null
+          id: string
+          nome: string
+          origem: string
+          unidade: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          categoria?: string
+          chave_nome?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nome: string
+          origem?: string
+          unidade?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          categoria?: string
+          chave_nome?: string | null
+          created_at?: string
+          emoji?: string | null
+          id?: string
+          nome?: string
+          origem?: string
+          unidade?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       estoque_ideal: {
         Row: {
           categoria: string
@@ -68,12 +107,93 @@ export type Database = {
         }
         Relationships: []
       }
+      historico_analise_itens: {
+        Row: {
+          alimento_id: string | null
+          analise_id: string
+          categoria: string
+          confianca: number | null
+          emoji: string | null
+          estimado: boolean
+          id: string
+          nome: string
+          quantidade: number
+          unidade: string
+          user_id: string
+        }
+        Insert: {
+          alimento_id?: string | null
+          analise_id: string
+          categoria?: string
+          confianca?: number | null
+          emoji?: string | null
+          estimado?: boolean
+          id?: string
+          nome: string
+          quantidade: number
+          unidade: string
+          user_id?: string
+        }
+        Update: {
+          alimento_id?: string | null
+          analise_id?: string
+          categoria?: string
+          confianca?: number | null
+          emoji?: string | null
+          estimado?: boolean
+          id?: string
+          nome?: string
+          quantidade?: number
+          unidade?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_analise_itens_alimento_id_user_id_fkey"
+            columns: ["alimento_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "catalogo_alimentos"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "historico_analise_itens_analise_id_user_id_fkey"
+            columns: ["analise_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "historico_analises"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      historico_analises: {
+        Row: {
+          created_at: string
+          id: string
+          relatorio: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          relatorio: Json
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          relatorio?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      salvar_analise_confirmada: {
+        Args: { p_id: string; p_relatorio: Json }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

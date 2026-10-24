@@ -15,15 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { CATEGORIAS, UNIDADES } from "@/lib/fridge-types";
 import type { Categoria, ItemIdeal, Unidade } from "@/lib/fridge-types";
 import { categoriaPalpite, emojiDoAlimento } from "@/lib/fridge-logic";
+import type { AlimentoCatalogo } from "@/lib/use-food-data";
 
 type Props = {
   estoque: ItemIdeal[];
   adicionar: (item: Omit<ItemIdeal, "id">) => void;
   atualizar: (id: string, mudancas: Partial<ItemIdeal>) => void;
   remover: (id: string) => void;
+  catalogo?: AlimentoCatalogo[];
 };
 
-export function EstoqueTab({ estoque, adicionar, atualizar, remover }: Props) {
+export function EstoqueTab({ estoque, adicionar, atualizar, remover, catalogo = [] }: Props) {
   const [nome, setNome] = useState("");
   const [quantidade, setQuantidade] = useState("1");
   const [unidade, setUnidade] = useState<Unidade>("un");
@@ -56,14 +58,18 @@ export function EstoqueTab({ estoque, adicionar, atualizar, remover }: Props) {
               <Label htmlFor="nome">Alimento</Label>
               <Input
                 id="nome"
+                list="alimentos-da-conta"
                 value={nome}
                 placeholder="Ex.: Iogurte natural"
                 onChange={(e) => {
                   setNome(e.target.value);
                   setCategoria(categoriaPalpite(e.target.value));
+                  const salvo = catalogo.find(a => a.nome === e.target.value);
+                  if (salvo && UNIDADES.some(u => u === salvo.unidade)) setUnidade(salvo.unidade as Unidade);
                 }}
                 onKeyDown={(e) => e.key === "Enter" && enviar()}
               />
+              <datalist id="alimentos-da-conta">{catalogo.map(a => <option key={a.id} value={a.nome} />)}</datalist>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="qtd">Quantidade</Label>
