@@ -123,7 +123,7 @@ function PaginaOferta() {
               <Link to="/auth">Já tenho conta</Link>
             </Button>
             <Button asChild>
-              <Link to="/auth">Começar agora <ArrowRight /></Link>
+              <Link to="/cadastro">Criar conta <ArrowRight /></Link>
             </Button>
           </div>
         </div>
@@ -144,7 +144,7 @@ function PaginaOferta() {
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" className="h-13 px-6 text-base shadow-xl shadow-primary/20">
-                <Link to="/auth"><Camera className="size-5" /> Criar minha conta</Link>
+                <Link to="/cadastro"><Camera className="size-5" /> Criar minha conta</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="h-13 bg-card px-6 text-base">
                 <Link to="/">Conhecer o aplicativo <ChevronRight /></Link>
@@ -290,7 +290,7 @@ function PaginaOferta() {
           <h2 className="font-display text-3xl font-extrabold">Pare de adivinhar. Comece a organizar.</h2>
           <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Crie sua conta e conheça uma forma mais simples de cuidar da geladeira e da lista de compras.</p>
           <Button asChild size="lg" className="mt-7 h-12 px-7 text-base">
-            <Link to="/auth"><Camera /> Criar minha conta</Link>
+            <Link to="/cadastro"><Camera /> Criar minha conta</Link>
           </Button>
         </div>
       </section>
