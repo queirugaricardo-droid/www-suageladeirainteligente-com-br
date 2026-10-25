@@ -135,7 +135,10 @@ function Index() {
             <Button variant={aba === "catalogo" ? "secondary" : "ghost"} onClick={() => navegar("catalogo")}><BookOpen /> Catálogo</Button>
             <Button variant={aba === "historico" ? "secondary" : "ghost"} onClick={() => navegar("historico")}><History /> Histórico</Button>
           </nav>
-          <Button asChild variant="outline" size="sm" className="hidden md:inline-flex"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar"}</Link></Button>
+          <div className="hidden items-center gap-2 md:flex">
+            <Button asChild variant="outline" size="sm"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar"}</Link></Button>
+            {!dados.usuario && <Button asChild size="sm"><Link to="/cadastro">Criar conta</Link></Button>}
+          </div>
 
           <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuAberto((v) => !v)} aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}>
             {menuAberto ? <X /> : <Menu />}
@@ -149,7 +152,8 @@ function Index() {
             <Button className="justify-start" onClick={fotografar}><Camera /> Tirar foto da geladeira</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("catalogo")}><BookOpen /> Catálogo de alimentos</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("historico")}><History /> Histórico de análises</Button>
-            <Button asChild variant="outline" className="justify-start"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar / criar conta"}</Link></Button>
+            <Button asChild variant="outline" className="justify-start"><Link to={dados.usuario ? "/conta" : "/auth"}>{dados.usuario ? "Minha conta" : "Entrar"}</Link></Button>
+            {!dados.usuario && <Button asChild className="justify-start"><Link to="/cadastro">Criar conta</Link></Button>}
           </nav>
         )}
       </header>
