@@ -29,7 +29,7 @@ function Retorno() {
         <>
           <CheckCircle2 className="size-12 text-primary" />
           <h1 className="text-2xl font-bold">Assinatura confirmada!</h1>
-          <p className="text-muted-foreground">Agora você tem até 50 fotos por mês.</p>
+          <p className="text-muted-foreground">Seu limite continua sendo de 2 fotos por mês. A assinatura não reinicia as fotos já usadas.</p>
           <Button asChild><Link to="/">Escanear minha geladeira</Link></Button>
         </>
       ) : conta.data && esgotado ? (
