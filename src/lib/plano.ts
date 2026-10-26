@@ -1,6 +1,6 @@
 // Pure plan rules shared by server and client.
 export const LIMITE_FOTOS_GRATUITO = 2;
-export const LIMITE_FOTOS_PAGO = 50;
+export const LIMITE_FOTOS_PAGO = 2;
 export const PRECO_PLANO_ID = "plano_mensal_brl";
 export const PLANO_PAGO = "mensal";
 
