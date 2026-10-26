@@ -10,7 +10,7 @@ import { getStripe } from "@/lib/stripe";
 import { authHead } from "@/lib/auth-head";
 
 export const Route = createFileRoute("/_authenticated/assinar")({
-  head: () => authHead("Assinar plano mensal", "Assine o plano mensal da Geladeira Inteligente por R$ 19,90 e tenha 50 fotos por mês."),
+  head: () => authHead("Assinar plano mensal", "Assine o plano mensal da Geladeira Inteligente por R$ 19,90 e tenha 2 fotos por mês."),
   component: Assinar,
 });
 
@@ -42,7 +42,7 @@ function Assinar() {
         <h1 className="text-3xl font-bold">Plano mensal</h1>
         <p className="mt-2 text-lg"><strong>R$ 19,90</strong>/mês · cancele quando quiser</p>
         <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          {["50 fotos por mês (gratuito: 2)", "Análise dos alimentos com IA", "Lista de compras e estoque ideal", "Histórico das análises"].map((t) => (
+          {["2 fotos por mês, assim como no gratuito", "Análise dos alimentos com IA", "Lista de compras e estoque ideal", "Histórico das análises"].map((t) => (
             <li key={t} className="flex items-center gap-2"><Check className="size-4 text-primary" />{t}</li>
           ))}
         </ul>
