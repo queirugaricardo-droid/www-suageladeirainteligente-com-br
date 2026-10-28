@@ -4,6 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { limiteFotos } from "./plano";
+import { provedorFoto } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
@@ -85,24 +86,12 @@ export const analisarFoto = createServerFn({ method: "POST" })
               : `Você só tem ${restantes} foto restante neste mês. Remova uma das fotos.`,
         };
       }
-      const provedor = criarProvedor();
-      const resultado = streamText({
-        model: provedor.responses(MODELO),
-        providerOptions: {
-          openai: {
-            store: false,
-            forceReasoning: true,
-            reasoningEffort: "high",
-            reasoningSummary: "auto",
-            include: ["reasoning.encrypted_content"],
-          },
-        },
-        messages: [
+      const messages = [
           {
-            role: "user",
+            role: "user" as const,
             content: [
               {
-                type: "text",
+                type: "text" as const,
                 text: [
                   "Você é um inspetor visual meticuloso de geladeiras abertas.",
                   data.imagens.length > 1
@@ -126,10 +115,29 @@ export const analisarFoto = createServerFn({ method: "POST" })
               ...data.imagens.map((imagem) => ({ type: "image" as const, image: imagem })),
             ],
           },
-        ],
+        ];
+      const geminiKey = process.env["GEMINI_API_KEY"]?.trim();
+      let texto: string;
+      if (provedorFoto(geminiKey) === "gemini" && geminiKey) {
+        const { gerarJsonGemini } = await import("./gemini.server");
+        const prompt = messages[0]?.content.find(part => part.type === "text");
+        texto = await gerarJsonGemini(geminiKey, prompt?.type === "text" ? prompt.text : "", data.imagens, process.env["GEMINI_MODEL"]?.trim() || undefined);
+      } else {
+      const resultado = streamText({
+        model: criarProvedor().responses(MODELO),
+        providerOptions: {
+          openai: {
+            store: false,
+            forceReasoning: true,
+            reasoningEffort: "high",
+            reasoningSummary: "auto",
+            include: ["reasoning.encrypted_content"],
+          },
+        },
+        messages,
       });
-
-      const texto = await resultado.text;
+        texto = await resultado.text;
+      }
       const json = extrairJson(texto) as {
           itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
       };
@@ -180,22 +188,10 @@ export const estimarPrecos = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     try {
-      const provedor = criarProvedor();
       const local = data.local?.trim() || "Brasil (média nacional)";
-      const resultado = streamText({
-        model: provedor.responses(MODELO),
-        providerOptions: {
-          openai: {
-            store: false,
-            forceReasoning: true,
-            reasoningEffort: "low",
-            reasoningSummary: "auto",
-            include: ["reasoning.encrypted_content"],
-          },
-        },
-        messages: [
+      const messages = [
           {
-            role: "user",
+            role: "user" as const,
             content: [
               `Estime o preço em reais (BRL) de cada item de supermercado abaixo na região: ${local}.`,
               data.mercado ? `Considere os preços típicos do mercado: ${data.mercado}.` : "",
@@ -207,10 +203,28 @@ export const estimarPrecos = createServerFn({ method: "POST" })
               .filter(Boolean)
               .join("\n"),
           },
-        ],
+        ];
+      const geminiKey = process.env["GEMINI_API_KEY"]?.trim();
+      let texto: string;
+      if (geminiKey) {
+        const { gerarJsonGemini } = await import("./gemini.server");
+        texto = await gerarJsonGemini(geminiKey, messages[0]?.content ?? "", [], process.env["GEMINI_MODEL"]?.trim() || undefined);
+      } else {
+      const resultado = streamText({
+        model: criarProvedor().responses(MODELO),
+        providerOptions: {
+          openai: {
+            store: false,
+            forceReasoning: true,
+            reasoningEffort: "low",
+            reasoningSummary: "auto",
+            include: ["reasoning.encrypted_content"],
+          },
+        },
+        messages,
       });
-
-      const texto = await resultado.text;
+        texto = await resultado.text;
+      }
       const json = extrairJson(texto) as {
         precos?: Array<{ nome?: string; precoUnitario?: number }>;
         observacao?: string;

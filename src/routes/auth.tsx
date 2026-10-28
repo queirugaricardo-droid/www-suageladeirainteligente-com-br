@@ -58,6 +58,12 @@ function PaginaAuth() {
   const social = async (provider: "google" | "lovable") => {
     setCarregando(true); setErro("");
     try {
+      if (import.meta.env["VITE_AUTH_PROVIDER"] === "supabase") {
+        if (provider !== "google") throw new Error("Serviço indisponível neste ambiente.");
+        const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` } });
+        if (error) throw error;
+        return;
+      }
       const r = await lovable.auth.signInWithOAuth(provider, { redirect_uri: `${window.location.origin}/auth/callback` });
       if (r.error) throw r.error;
       if (r.redirected) return;
@@ -73,7 +79,7 @@ function PaginaAuth() {
           <Button variant="outline" className="h-11 w-full" disabled={carregando} onClick={() => void social("google")}>
             Continuar com Google
           </Button>
-          <Button type="button" className="lovable-auth-button w-full" disabled={carregando} onClick={() => void social("lovable")}>Continue with Lovable</Button>
+          {import.meta.env["VITE_AUTH_PROVIDER"] !== "supabase" && <Button type="button" className="lovable-auth-button w-full" disabled={carregando} onClick={() => void social("lovable")}>Continue with Lovable</Button>}
           <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" />ou entre com e-mail<span className="h-px flex-1 bg-border" /></div>
           <form onSubmit={enviar} className="space-y-3">
             <div className="space-y-2"><Label htmlFor="login-email">E-mail</Label><Input
