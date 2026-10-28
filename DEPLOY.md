@@ -85,7 +85,7 @@ Configure para **Production** e, se for testar, também **Preview**. URL e chave
 
 ### Alternativa Netlify
 
-Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o comando, Node 22, `NITRO_PRESET=netlify` e a pasta pública `dist/client`. Cadastre as mesmas variáveis, trocando o preset para `netlify`. Nitro gera `.netlify/functions-internal` e as regras de servidor; não adicione um redirect SPA `/* /index.html 200`. Confira que funções foram publicadas, não somente HTML. Segredos precisam estar disponíveis às funções em runtime, não apenas à compilação.
+Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o comando, Node 22, `NITRO_PRESET=netlify` e a pasta pública `dist`. Cadastre as mesmas variáveis, trocando o preset para `netlify`. Nitro gera `.netlify/functions-internal` e as regras de servidor; não adicione um redirect SPA `/* /index.html 200`. Confira que funções foram publicadas, não somente HTML. Segredos precisam estar disponíveis às funções em runtime, não apenas à compilação.
 
 ## 5. Exportar dados atuais e importar com segurança
 
@@ -119,6 +119,12 @@ Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o coman
 - Nenhuma exportação, restauração, configuração de provedor ou publicação Vercel/Netlify foi realizada pelo preparo de código. Esses testes externos ficam pendentes de suas contas e credenciais.
 
 ## O que só você pode autorizar/configurar
+
+### Verificação desta preparação
+
+- Compilação automática: OK. 16 testes passaram (provedor opcional, chave pública, resposta Gemini, cota e validações existentes).
+- Preview com sessão autenticada: perfil e catálogo carregaram sem erro; histórico consultado e vazio; contador confirmou 1 de 2 fotos restantes. Nenhum erro de execução observado.
+- Não enviei foto nova para não consumir a última foto mensal da conta. Análise real completa, gravação/recarga do histórico, Gemini direto e publicação externa ainda não foram verificados nesta preparação. Não confunda testes de seleção de provedor com teste real de reconhecimento.
 
 1. **Supabase externo:** criar conta/projeto e guardar credenciais — https://supabase.com/dashboard.
 2. **Google:** criar chave Gemini, OAuth e autorizar cobrança/cotas — https://aistudio.google.com/apikey e https://console.cloud.google.com.
