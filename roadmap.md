@@ -1,5 +1,11 @@
 # Geladeira Inteligente — tarefas
 
+## Pedido atual — portabilidade sem desligar Lovable
+- [ ] IA direta Gemini opcional, preservando o Gateway sem chave
+- [ ] Configuração externa por ambiente e deploy full-stack na Vercel/Netlify
+- [ ] Guia DEPLOY.md com banco, autenticação, exportação e limites da migração
+- [ ] Testes de seleção de provedor, configuração, cota e navegação autenticada
+
 ## Pedido atual — autenticação profissional
 - [x] Corrigir apresentação do login e completar cadastro com nome, termos, confirmação e recuperação de senha
 - [x] Criar perfil protegido, sessão consistente e encerramento seguro
