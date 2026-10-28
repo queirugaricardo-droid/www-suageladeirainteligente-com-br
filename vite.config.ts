@@ -8,10 +8,10 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { loadEnv } from "vite";
 import { chavePublica } from "./src/lib/deploy-config";
 
-export default defineConfig(({ mode }) => {
+export default ({ mode }: { mode: string }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   const anon = chavePublica(env["VITE_SUPABASE_ANON_KEY"]);
-  return {
+  return defineConfig({
   // Preserve generated clients; Nitro detects external hosts without SPA rewrites.
   vite: { define: {
     ...(anon ? { 'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(anon) } : {}),
@@ -23,5 +23,5 @@ export default defineConfig(({ mode }) => {
     pages: [{ path: "/oferta" }],
     prerender: { enabled: true, autoStaticPathsDiscovery: false },
   },
-  };
-});
+  });
+};
