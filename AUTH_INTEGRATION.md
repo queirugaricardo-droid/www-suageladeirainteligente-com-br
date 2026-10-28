@@ -4,7 +4,7 @@
 - Existing Cloud Auth remains the account owner. Email/password, Google and Lovable sign-in use the same user IDs.
 - `/auth`, `/cadastro`, `/recuperar-senha`, `/reset-password`, `/auth/callback`, `/termos`, `/privacidade`, `/` and `/oferta` are public. `/conta` lives under the client-only authenticated gate. API/server authentication is separate from the UI gate.
 - Profile creation and a free subscription record happen atomically during signup. Profiles contain no roles. Customers can read their subscription but cannot insert/update/delete it.
-- `tem_acesso_pago` requires backend-confirmed provider identity plus a current paid period. No existing free feature has been reclassified as paid; paid features/limits still need a business decision.
+- Paid access is disabled. The app uses a fixed two-photo monthly allowance, independent of archived subscriptions.
 - Duplicate email handling remains with Cloud Auth; signup responses deliberately avoid revealing account existence.
 - Default Cloud Auth emails are used. No custom sender or email provider has been configured.
 
@@ -15,16 +15,12 @@
 4. In More → Users → Auth settings → Advanced add the exact external-domain callback patterns. Current managed preview and published domains are already allowed. Localhost test callbacks are not on the hosted allow-list.
 5. Cross-origin APIs, if required, must verify a bearer with Cloud Auth, use a strict origin allow-list, and scope all operations to that verified user ID. Do not accept a user ID in request data as authentication.
 
-## Payment integration (Stripe, test mode enabled)
-- Checkout: `/assinar` (authenticated, embedded). Webhook: `/api/public/payments/webhook`, signature-verified, re-reads the subscription from the provider and binds via the server-created Customer `metadata.userId`.
-- Entitlement: `tem_acesso_pago_ambiente(env)`; env comes from the build's publishable token, never the browser.
-
-- Choose/enable the actual provider, create the real product/price and associate checkout with the authenticated user server-side.
-- Verify webhooks against the raw signed payload; persist unique event IDs for idempotency; verify environment, product, currency and payment status with the provider before writes.
-- Only privileged provider handlers may update `assinaturas`; bind by a server-established customer/user mapping, never an untrusted metadata/user-ID alone.
-- Record provider subscription/transaction IDs, verified time and paid period; handle pending, cancellation, expiry, refunds and renewal events.
-- Do not expose a generic endpoint that lets the browser set a plan or subscription status.
-- Test checkout, signed webhook, replay rejection and access readback across both actual domains before describing integration as complete.
+## Billing removed
+- Checkout, return page, billing portal, Stripe clients and payment webhook are removed.
+- Account/profile and photo analysis no longer query subscriptions or payment access.
+- Historical subscription rows remain protected and archived; paid-access database functions always return false.
+- Existing authentication, profile consent, photo quota, catalogue and report data are preserved.
+- No Stripe account, payment token or Stripe API request is required to use the application.
 
 ## Legal/operator configuration still required
 The included terms/privacy text is an initial operational draft, not legal advice. The operator must supply legal entity/name, contact channel, retention/deletion policy and final subscription terms before commercial launch. Do not invent these details.

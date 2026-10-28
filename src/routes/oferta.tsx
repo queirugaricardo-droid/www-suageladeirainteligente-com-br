@@ -24,13 +24,13 @@ const SITE_URL = "https://www-suageladeirainteligente-com-br.lovable.app";
 export const Route = createFileRoute("/oferta")({
   head: () => ({
     meta: [
-      { title: "Plano Geladeira Inteligente — Organize suas compras por R$ 19,90/mês" },
+      { title: "Geladeira Inteligente — Conheça o aplicativo" },
       {
         name: "description",
         content:
-          "Fotografe sua geladeira, identifique alimentos com IA e receba uma lista de compras organizada. Conheça o plano por R$ 19,90 ao mês.",
+          "Fotografe sua geladeira, identifique alimentos com IA e receba uma lista de compras organizada. Organize seu estoque e suas compras.",
       },
-      { property: "og:title", content: "Sua geladeira organizada por R$ 19,90/mês" },
+      { property: "og:title", content: "Geladeira Inteligente — Sua cozinha organizada" },
       {
         property: "og:description",
         content:
@@ -82,7 +82,7 @@ const perguntas = [
   {
     pergunta: "Quantas fotos posso analisar?",
     resposta:
-      "O limite é de 2 fotos por mês por conta, tanto no plano gratuito quanto no plano mensal de R$ 19,90. Enviar dois ângulos na mesma análise consome as duas fotos do mês. Assinar não aumenta nem reinicia esse limite.",
+      "O limite é de 2 fotos por mês por conta. Enviar dois ângulos na mesma análise consome as duas fotos do mês. O limite renova no dia 1º.",
   },
   {
     pergunta: "A identificação da foto pode ser corrigida?",
@@ -231,8 +231,8 @@ function PaginaOferta() {
       <section className="border-y border-border bg-foreground py-16 text-background sm:py-24">
         <div className="mx-auto grid max-w-5xl items-center gap-10 px-4 sm:px-6 lg:grid-cols-[1fr_0.8fr]">
           <div>
-            <p className="text-sm font-extrabold uppercase text-primary">Plano mensal</p>
-            <h2 className="mt-3 max-w-xl font-display text-3xl font-extrabold sm:text-4xl">Sua geladeira sob controle por menos de R$ 1 por dia.</h2>
+            <p className="text-sm font-extrabold uppercase text-primary">Sua conta</p>
+            <h2 className="mt-3 max-w-xl font-display text-3xl font-extrabold sm:text-4xl">Sua geladeira sob controle.</h2>
             <p className="mt-4 max-w-xl leading-relaxed text-background/70">
               Uma ferramenta prática para conferir alimentos, manter o estoque ideal e chegar ao mercado com a lista pronta.
             </p>
@@ -240,10 +240,7 @@ function PaginaOferta() {
 
           <div className="rounded-2xl border border-background/15 bg-background p-6 text-foreground shadow-2xl sm:p-8">
             <p className="font-bold text-muted-foreground">Geladeira Inteligente</p>
-            <div className="mt-3 flex items-end gap-2">
-              <span className="text-5xl font-extrabold">R$ 19,90</span>
-              <span className="pb-1 text-sm text-muted-foreground">/mês</span>
-            </div>
+            <h3 className="mt-3 text-3xl font-extrabold">Organize sua cozinha</h3>
             <ul className="mt-7 space-y-3 text-sm">
               {[
                 "Até 2 fotos por mês",
@@ -257,10 +254,10 @@ function PaginaOferta() {
               ))}
             </ul>
             <Button asChild size="lg" className="mt-8 h-12 w-full text-base">
-              <Link to="/assinar">Assinar por R$ 19,90/mês <ArrowRight /></Link>
+              <Link to="/cadastro">Criar minha conta <ArrowRight /></Link>
             </Button>
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
-              Entre ou crie sua conta para assinar. 2 fotos por mês, cancele quando quiser.
+              Até 2 fotos por mês por conta.
             </p>
           </div>
         </div>
