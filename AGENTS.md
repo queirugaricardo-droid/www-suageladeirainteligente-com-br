@@ -18,4 +18,4 @@
 - Keep public sales/auth/legal routes independent from protected account routes under the Cloud Auth pathless gate; private server functions always validate the bearer themselves.
 - Store profile consent separately from read-only subscription entitlements; customers cannot write paid-access fields, and future payment webhooks must verify provider signatures before privileged updates.
 - Cross-domain commercial integration shares the account provider, not browser storage; never transfer tokens in links, accept client purchase claims, or enable broad CORS without an explicit domain allow-list.
-- Paid access is written only by the signature-verified payments webhook, which re-fetches the subscription from the provider and filters by environment derived from the build token, so test purchases never unlock live access.
+- Billing is disabled: no checkout, payment webhook, or paid entitlement checks. Enforce the monthly photo allowance independently of archived subscription records, preserving account and food data.

@@ -20,9 +20,3 @@ export function mensagemAuth(error: unknown) {
   return "Não foi possível continuar. Confira os dados e tente novamente.";
 }
 
-export type AssinaturaAcesso = { plano: string; status: string; acesso_inicio: string | null; acesso_fim: string | null; provedor: string | null; provedor_assinatura_id: string | null; pagamento_verificado_em: string | null };
-export function possuiAcessoPago(s: AssinaturaAcesso | null, agora = Date.now()) {
-  return Boolean(s && s.plano !== "gratuito" && ["ativo", "cancelado"].includes(s.status) && s.provedor && s.provedor_assinatura_id && s.pagamento_verificado_em && s.acesso_inicio && s.acesso_fim && Date.parse(s.acesso_inicio) <= agora && Date.parse(s.acesso_fim) > agora);
-}
-
-export const statusAssinatura: Record<string, string> = { gratuito: "Gratuito", aguardando_confirmacao: "Aguardando confirmação", ativo: "Ativo", cancelado: "Cancelado", expirado: "Expirado", pagamento_pendente: "Pagamento pendente" };

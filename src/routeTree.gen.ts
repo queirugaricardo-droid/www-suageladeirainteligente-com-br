@@ -18,11 +18,8 @@ import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as RecuperarSenhaRouteImport } from './routes/recuperar-senha'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TermosRouteImport } from './routes/termos'
-import { Route as AuthenticatedAssinarRouteImport } from './routes/_authenticated/assinar'
-import { Route as AuthenticatedAssinaturaRetornoRouteImport } from './routes/_authenticated/assinatura-retorno'
 import { Route as AuthenticatedContaRouteImport } from './routes/_authenticated/conta'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
-import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -68,17 +65,6 @@ const TermosRoute = TermosRouteImport.update({
   path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAssinarRoute = AuthenticatedAssinarRouteImport.update({
-  id: '/assinar',
-  path: '/assinar',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedAssinaturaRetornoRoute =
-  AuthenticatedAssinaturaRetornoRouteImport.update({
-    id: '/assinatura-retorno',
-    path: '/assinatura-retorno',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedContaRoute = AuthenticatedContaRouteImport.update({
   id: '/conta',
   path: '/conta',
@@ -89,12 +75,6 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicPaymentsWebhookRoute =
-  ApiPublicPaymentsWebhookRouteImport.update({
-    id: '/api/public/payments/webhook',
-    path: '/api/public/payments/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,11 +85,8 @@ export interface FileRoutesByFullPath {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
-  '/assinar': typeof AuthenticatedAssinarRoute
-  '/assinatura-retorno': typeof AuthenticatedAssinaturaRetornoRoute
   '/conta': typeof AuthenticatedContaRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -120,11 +97,8 @@ export interface FileRoutesByTo {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
-  '/assinar': typeof AuthenticatedAssinarRoute
-  '/assinatura-retorno': typeof AuthenticatedAssinaturaRetornoRoute
   '/conta': typeof AuthenticatedContaRoute
   '/auth/callback': typeof AuthCallbackRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -137,11 +111,8 @@ export interface FileRoutesById {
   '/recuperar-senha': typeof RecuperarSenhaRoute
   '/reset-password': typeof ResetPasswordRoute
   '/termos': typeof TermosRoute
-  '/_authenticated/assinar': typeof AuthenticatedAssinarRoute
-  '/_authenticated/assinatura-retorno': typeof AuthenticatedAssinaturaRetornoRoute
   '/_authenticated/conta': typeof AuthenticatedContaRoute
   '/auth_/callback': typeof AuthCallbackRoute
-  '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -154,11 +125,8 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/reset-password'
     | '/termos'
-    | '/assinar'
-    | '/assinatura-retorno'
     | '/conta'
     | '/auth/callback'
-    | '/api/public/payments/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -169,11 +137,8 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/reset-password'
     | '/termos'
-    | '/assinar'
-    | '/assinatura-retorno'
     | '/conta'
     | '/auth/callback'
-    | '/api/public/payments/webhook'
   id:
     | '__root__'
     | '/'
@@ -185,11 +150,8 @@ export interface FileRouteTypes {
     | '/recuperar-senha'
     | '/reset-password'
     | '/termos'
-    | '/_authenticated/assinar'
-    | '/_authenticated/assinatura-retorno'
     | '/_authenticated/conta'
     | '/auth_/callback'
-    | '/api/public/payments/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -203,7 +165,6 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   TermosRoute: typeof TermosRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
-  ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -271,20 +232,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/assinar': {
-      id: '/_authenticated/assinar'
-      path: '/assinar'
-      fullPath: '/assinar'
-      preLoaderRoute: typeof AuthenticatedAssinarRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/assinatura-retorno': {
-      id: '/_authenticated/assinatura-retorno'
-      path: '/assinatura-retorno'
-      fullPath: '/assinatura-retorno'
-      preLoaderRoute: typeof AuthenticatedAssinaturaRetornoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/conta': {
       id: '/_authenticated/conta'
       path: '/conta'
@@ -299,25 +246,14 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/payments/webhook': {
-      id: '/api/public/payments/webhook'
-      path: '/api/public/payments/webhook'
-      fullPath: '/api/public/payments/webhook'
-      preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAssinarRoute: typeof AuthenticatedAssinarRoute
-  AuthenticatedAssinaturaRetornoRoute: typeof AuthenticatedAssinaturaRetornoRoute
   AuthenticatedContaRoute: typeof AuthenticatedContaRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAssinarRoute: AuthenticatedAssinarRoute,
-  AuthenticatedAssinaturaRetornoRoute: AuthenticatedAssinaturaRetornoRoute,
   AuthenticatedContaRoute: AuthenticatedContaRoute,
 }
 
@@ -335,7 +271,6 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   TermosRoute: TermosRoute,
   AuthCallbackRoute: AuthCallbackRoute,
-  ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
