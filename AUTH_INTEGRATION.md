@@ -33,3 +33,8 @@ The included terms/privacy text is an initial operational draft, not legal advic
 - Real signup with a reserved test domain was rejected by the hosted service, which requires a deliverable email. No account was created. Valid login, confirmed signup, duplicate registration, email delivery/link completion, signed-in logout/password change and two-account RLS tests remain unverified until a confirmed test account is available.
 - HIBP/current-password hosted settings were not changed because their coupled current values are unavailable. App password changes collect the current password. Do not claim those hosted toggles have been enabled.
 - Database linter flags the intentional authenticated consent SECURITY DEFINER function; it validates inputs and always targets auth.uid(), never a client-provided user ID.
+## Billing removal verification (2026-10-28)
+- Nine quota, registration and food-data tests passed; preview build OK.
+- Authenticated account/profile and example review loaded without Stripe requests or runtime errors.
+- Sales-page signup opens registration; removed checkout, return and webhook URLs return 404.
+- No real photo analysis was submitted during removal validation to avoid consuming the account quota.

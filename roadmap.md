@@ -34,4 +34,4 @@
 ## Pedido atual — remover Stripe
 - [x] Remover checkout, webhook, gerenciamento e liberação de acesso pago
 - [x] Preservar contas, catálogo, histórico e cota mensal de 2 fotos
-- [ ] Validar remoção e acesso à conta
+- [x] Validar remoção: conta logada, revisão, cadastro, páginas antigas e webhook retornam 404; 9 testes passaram
