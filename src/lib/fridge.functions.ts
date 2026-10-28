@@ -4,7 +4,6 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { limiteFotos } from "./plano";
-import { acessoPagoServidor } from "./payments.functions";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
@@ -30,9 +29,9 @@ export const consultarUsoFotos = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const sb = context.supabase as unknown as ClienteSb;
-    const [usadas, pago] = await Promise.all([fotosUsadasNoMes(sb, context.userId), acessoPagoServidor(sb)]);
-    const limite = limiteFotos(pago);
-    return { usadas, limite, pago, restantes: Math.max(0, limite - usadas) };
+    const usadas = await fotosUsadasNoMes(sb, context.userId);
+    const limite = limiteFotos();
+    return { usadas, limite, restantes: Math.max(0, limite - usadas) };
   });
 
 function criarProvedor() {
@@ -73,8 +72,8 @@ export const analisarFoto = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const sb = context.supabase as unknown as ClienteSb;
-      const [usadas, pago] = await Promise.all([fotosUsadasNoMes(sb, context.userId), acessoPagoServidor(sb)]);
-      const limite = limiteFotos(pago);
+      const usadas = await fotosUsadasNoMes(sb, context.userId);
+      const limite = limiteFotos();
       const restantes = limite - usadas;
       if (data.imagens.length > restantes) {
         return {
