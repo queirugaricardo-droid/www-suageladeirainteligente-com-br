@@ -19,3 +19,6 @@
 - Store profile consent separately from read-only subscription entitlements; customers cannot write paid-access fields, and future payment webhooks must verify provider signatures before privileged updates.
 - Cross-domain commercial integration shares the account provider, not browser storage; never transfer tokens in links, accept client purchase claims, or enable broad CORS without an explicit domain allow-list.
 - Billing is disabled: no checkout, payment webhook, or paid entitlement checks. Enforce the monthly photo allowance independently of archived subscription records, preserving account and food data.
+- Select direct Gemini only when GEMINI_API_KEY exists inside the server handler; never silently switch on provider failure, and share prompts, normalization and quota logging across providers.
+- Keep generated Cloud integrations unchanged; map VITE_SUPABASE_ANON_KEY to the generated public key at build time, and opt into external OAuth only with VITE_AUTH_PROVIDER=supabase.
+- Deploy the full TanStack Start server through Nitro platform presets, never SPA catch-all rewrites, because authentication and AI require server functions.
