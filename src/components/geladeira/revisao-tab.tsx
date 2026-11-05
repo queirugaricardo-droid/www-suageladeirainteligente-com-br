@@ -203,9 +203,6 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar, salvando = false }: P
                           {item.quantidade.toLocaleString("pt-BR")} {item.unidade}
                           {item.estimado && <span className="ml-1 text-xs">(estimado, confira)</span>}
                         </p>
-                        {item.observacao && (
-                          <p className="mt-0.5 text-xs italic text-muted-foreground">{item.observacao}</p>
-                        )}
                         <Badge className={`mt-1 ${selo.classe}`}>{selo.texto}</Badge>
                       </>
                     )}
