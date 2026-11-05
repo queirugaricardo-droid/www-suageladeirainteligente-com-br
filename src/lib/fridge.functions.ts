@@ -108,8 +108,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Antes de responder, revise mentalmente a lista final: confirme que cada item está realmente visível e que a contagem confere com a imagem.",
                   "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
                    'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
-                   'Em "observacao", escreva uma nota curta e honesta sobre o item (ex.: "rótulo parcialmente visível", "embalagem fechada, conteúdo incerto") ou uma string vazia quando estiver tudo claro.',
-                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes","observacao":""}]}.',
+                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
@@ -140,7 +139,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
         texto = await resultado.text;
       }
       const json = extrairJson(texto) as {
-          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string; observacao?: string }>;
+          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
       };
       const itens = (json.itens ?? [])
         .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
@@ -162,7 +161,6 @@ export const analisarFoto = createServerFn({ method: "POST" })
               (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
                 ? (i.categoria.trim() as CategoriaDeteccao)
                 : undefined,
-            observacao: typeof i.observacao === "string" && i.observacao.trim() ? i.observacao.trim().slice(0, 300) : undefined,
           };
         });
       const { error: erroRegistro } = await sb

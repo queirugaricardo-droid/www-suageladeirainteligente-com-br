@@ -31,8 +31,6 @@ export type ItemDetectado = {
   estimado?: boolean | undefined;
   emoji?: string | undefined;
   categoria?: CategoriaDeteccao | undefined;
-  /** Nota curta da IA sobre o item (ex.: "rótulo parcialmente visível"). */
-  observacao?: string | undefined;
 };
 
 export const CATEGORIAS_DETECCAO = [
