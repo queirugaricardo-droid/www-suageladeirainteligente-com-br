@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import { imagemInline, textoGemini, type GeminiChunk } from "./gemini-response";
 
 const itemSchema = {
@@ -24,43 +25,25 @@ const priceSchema = {
 
 /** Credentials are passed only from a server-function handler. Never retry or switch on failure. */
 export async function gerarJsonGemini(chave: string, prompt: string, imagens: string[] = [], model = "gemini-2.5-flash") {
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
-    method: "POST",
-    headers: { "x-goog-api-key": chave, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }, ...imagens.map(imagemInline)] }],
-      generationConfig: { responseMimeType: "application/json", responseJsonSchema: imagens.length ? itemSchema : priceSchema },
-    }),
-  });
-  if (!response.ok) {
-    // Never expose response bodies which can contain request metadata or credentials.
-    if (response.status === 401 || response.status === 403) throw new Error("A chave Gemini não tem acesso autorizado. Confira a chave e as permissões na conta Google.");
-    if (response.status === 429) throw new Error("O limite de uso do Gemini foi atingido. Confira a cota na conta Google.");
-    throw new Error(`Não foi possível concluir a análise com Gemini (${response.status}).`);
-  }
-  if (!response.body) throw new Error("O Gemini não enviou uma resposta.");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let text = "";
-  const processLine = (line: string) => {
-    if (!line.startsWith("data:")) return;
-    const data = line.slice(5).trim();
-    if (data && data !== "[DONE]") text += textoGemini(JSON.parse(data) as GeminiChunk);
-  };
+  const ai = new GoogleGenAI({ apiKey: chave });
+  let response;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      lines.forEach(processLine);
-      if (done) { processLine(buffer); break; }
-    }
+    response = await ai.models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: prompt }, ...imagens.map(imagemInline)] }],
+      config: {
+        responseMimeType: "application/json",
+        responseJsonSchema: imagens.length ? itemSchema : priceSchema,
+      },
+    });
   } catch (error) {
-    await reader.cancel().catch(() => undefined);
-    throw error;
-  } finally { reader.releaseLock(); }
+    // Never expose error bodies which can contain request metadata or credentials.
+    const status = (error as { status?: number })?.status;
+    if (status === 401 || status === 403) throw new Error("A chave Gemini não tem acesso autorizado. Confira a chave e as permissões na conta Google.");
+    if (status === 429) throw new Error("O limite de uso do Gemini foi atingido. Confira a cota na conta Google.");
+    throw new Error(`Não foi possível concluir a análise com Gemini${status ? ` (${status})` : ""}.`);
+  }
+  const text = textoGemini(response as GeminiChunk);
   if (!text.trim()) throw new Error("O Gemini não retornou alimentos reconhecíveis.");
   return text;
 }
