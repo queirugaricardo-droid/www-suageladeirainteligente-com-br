@@ -1,8 +1,9 @@
 # Geladeira Inteligente — tarefas
 
 ## Pedido atual — fotos ilimitadas
-- [ ] Remover limites de quantidade no envio, análise e mensagens, preservando IA e dados
-- [ ] Auditar banco e testar análises sucessivas e envio de mais de duas fotos
+- [x] Remover limites de quantidade no envio, análise e mensagens, preservando IA e dados
+- [x] Auditar banco (nenhuma regra de cota), validar envio de três fotos autenticado; 18 testes e build OK
+- [ ] Concluir análise real e repetições — bloqueado: serviço de IA retornou 402 por falta de créditos, não por quantidade de fotos
 
 ## Pedido atual — portabilidade sem desligar Lovable
 - [x] IA direta Gemini opcional, preservando o Gateway sem chave
