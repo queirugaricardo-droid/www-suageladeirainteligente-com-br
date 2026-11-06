@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useSignOut } from "@/lib/use-sign-out";
 import { useSessao } from "@/lib/use-sessao";
@@ -8,10 +8,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { analisarFoto, consultarUsoFotos } from "@/lib/fridge.functions";
+import { analisarFoto } from "@/lib/fridge.functions";
 import type { ItemDetectado, ItemIdeal } from "@/lib/fridge-types";
-
-const MAX_FOTOS = 2;
 
 type Props = {
   estoque: ItemIdeal[];
@@ -56,26 +54,8 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const inputCamera = useRef<HTMLInputElement>(null);
   const inputArquivo = useRef<HTMLInputElement>(null);
   const analisar = useServerFn(analisarFoto);
-  const consultarUso = useServerFn(consultarUsoFotos);
   const { usuario, pronto } = useSessao();
   const sair = useSignOut();
-  const [restantes, setRestantes] = useState<number | null>(null);
-  const [limite, setLimite] = useState(2);
-
-  const atualizarUso = useCallback(async () => {
-    try {
-      const uso = await consultarUso();
-      setRestantes(uso.restantes);
-      setLimite(uso.limite);
-    } catch {
-      setRestantes(null);
-    }
-  }, [consultarUso]);
-
-  useEffect(() => {
-    if (usuario) atualizarUso();
-    else setRestantes(null);
-  }, [usuario, atualizarUso]);
 
   useImperativeHandle(ref, () => ({
     abrirCamera: () => inputCamera.current?.click(),
@@ -84,13 +64,9 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
   const escolher = async (arquivo?: File) => {
     if (!arquivo) return;
     setErro("");
-    if (fotos.length >= MAX_FOTOS) {
-      setErro(`Você pode enviar no máximo ${MAX_FOTOS} fotos por análise.`);
-      return;
-    }
     try {
       const nova = await comprimir(arquivo);
-      setFotos((atual) => [...atual, nova].slice(0, MAX_FOTOS));
+      setFotos((atual) => [...atual, nova]);
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não consegui carregar a foto.");
     }
@@ -104,10 +80,6 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
     if (fotos.length === 0) return;
     if (!usuario) {
       setErro("Entre na sua conta para analisar fotos.");
-      return;
-    }
-    if (restantes !== null && fotos.length > restantes) {
-      setErro(restantes === 0 ? `Você já usou suas ${limite} fotos deste mês. O limite renova no dia 1º.` : `Você só tem ${restantes} foto restante neste mês.`);
       return;
     }
     if (estoque.length === 0) {
@@ -132,7 +104,6 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
       setErro(e instanceof Error ? e.message : "Falha ao analisar a foto.");
     } finally {
       setCarregando(false);
-      atualizarUso();
     }
   };
 
@@ -145,7 +116,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
         {pronto && !usuario ? (
           <Alert>
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-              <span>Entre na sua conta para analisar fotos (2 fotos por mês).</span>
+              <span>Entre na sua conta para analisar fotos.</span>
               <Button asChild size="sm">
                 <Link to="/auth">Entrar</Link>
               </Button>
@@ -154,7 +125,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
         ) : usuario ? (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-secondary/50 px-3 py-2 text-sm">
             <span>
-              {restantes === null ? "Verificando seu limite..." : `${restantes} de ${limite} fotos restantes neste mês`}
+              Fotos e análises ilimitadas
             </span>
             <Button variant="ghost" size="sm" onClick={() => void sair().catch(() => toast.error("Não foi possível sair da conta."))}>
               Sair ({usuario.email})
@@ -167,14 +138,14 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           accept="image/*"
           capture="environment"
           className="hidden"
-          onChange={(e) => escolher(e.target.files?.[0])}
+          onChange={(e) => { void escolher(e.target.files?.[0]); e.target.value = ""; }}
         />
         <input
           ref={inputArquivo}
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => escolher(e.target.files?.[0])}
+          onChange={(e) => { void escolher(e.target.files?.[0]); e.target.value = ""; }}
         />
 
         {fotos.length > 0 ? (
@@ -197,50 +168,47 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
                 </Button>
               </div>
             ))}
-            {fotos.length < MAX_FOTOS && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => inputArquivo.current?.click()}
                 className="flex h-44 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-border bg-secondary/40 text-center transition-colors hover:bg-secondary sm:h-56"
               >
                 <ImagePlus className="size-7 text-primary" />
                 <span className="text-sm font-medium text-foreground">
-                  Adicionar 2ª foto (outro ângulo)
+                   Adicionar foto (outro ângulo)
                 </span>
-              </button>
-            )}
+              </Button>
           </div>
         ) : (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => inputArquivo.current?.click()}
             className="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border bg-secondary/40 px-6 py-14 text-center transition-colors hover:bg-secondary"
           >
             <ImagePlus className="size-8 text-primary" />
             <span className="font-medium text-foreground">Toque para escolher uma foto</span>
             <span className="text-sm text-muted-foreground">
-              Abra a geladeira, fotografe de frente e com boa luz. Você pode enviar até {MAX_FOTOS}{" "}
-              fotos de ângulos diferentes.
+              Abra a geladeira, fotografe de frente e com boa luz. Você pode enviar fotos de ângulos diferentes.
             </span>
-          </button>
+          </Button>
         )}
 
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
             onClick={() => inputCamera.current?.click()}
-            disabled={fotos.length >= MAX_FOTOS}
           >
             <Camera className="size-4" /> Tirar foto
           </Button>
           <Button
             variant="outline"
             onClick={() => inputArquivo.current?.click()}
-            disabled={fotos.length >= MAX_FOTOS}
           >
             <ImagePlus className="size-4" /> Carregar imagem
           </Button>
-          <Button onClick={executar} disabled={fotos.length === 0 || carregando || !usuario || restantes === 0} className="ml-auto">
+          <Button onClick={executar} disabled={fotos.length === 0 || carregando || !usuario} className="ml-auto">
             {carregando ? (
               <>
                 <Loader2 className="size-4 animate-spin" /> Analisando sua geladeira...

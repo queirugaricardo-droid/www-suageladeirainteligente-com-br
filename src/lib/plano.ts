@@ -1,6 +1,6 @@
-// Monthly photo allowance is independent of billing.
-export const LIMITE_FOTOS_MENSAL = 100;
+import { z } from "zod";
 
-export function limiteFotos() {
-  return LIMITE_FOTOS_MENSAL;
-}
+// Validate each image, without a monthly or per-analysis count quota.
+export const imagensAnaliseSchema = z.object({
+  imagens: z.array(z.string().min(50).max(12_000_000)).min(1),
+});
