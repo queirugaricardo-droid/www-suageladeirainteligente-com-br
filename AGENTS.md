@@ -12,13 +12,13 @@
 - Keep AI photo results as an in-memory review draft and persist a report only after explicit user confirmation, so uncertain detections never silently affect inventory.
 - Keep `/oferta` data-free and prerendered as the public sales page, so it remains fast and independent from authenticated app state.
 - Keep the private food catalogue separate from ideal inventory; confirmed detections must never automatically create shopping targets.
-- Save immutable confirmed report snapshots and normalized detected items atomically through the authenticated database RPC; photo quota logs stay separate, and report edits do not create new analyses.
+- Save immutable confirmed report snapshots and normalized detected items atomically through the authenticated database RPC; photo telemetry stays separate and non-blocking, and report edits do not create new analyses.
 - Scope browser inventory/report caches and query keys by account identity; never import an unscoped visitor cache automatically into an account.
 - Own session hydration and identity-change invalidation in one root provider; sign-out cancels queries, clears protected cache, ends the session, then replaces history with the login page.
 - Keep public sales/auth/legal routes independent from protected account routes under the Cloud Auth pathless gate; private server functions always validate the bearer themselves.
 - Store profile consent separately from read-only subscription entitlements; customers cannot write paid-access fields, and future payment webhooks must verify provider signatures before privileged updates.
 - Cross-domain commercial integration shares the account provider, not browser storage; never transfer tokens in links, accept client purchase claims, or enable broad CORS without an explicit domain allow-list.
-- Billing is disabled: no checkout, payment webhook, or paid entitlement checks. Enforce the monthly photo allowance independently of archived subscription records, preserving account and food data.
-- Select direct Gemini only when GEMINI_API_KEY exists inside the server handler; never silently switch on provider failure, and share prompts, normalization and quota logging across providers.
+- Billing is disabled: no checkout, payment webhook, or paid entitlement checks. Photo analysis has no monthly or per-request count quota; retain image validity checks, authentication and private data isolation.
+- Select direct Gemini only when GEMINI_API_KEY exists inside the server handler; never silently switch on provider failure, and share prompts, normalization and non-blocking telemetry across providers.
 - Keep generated Cloud integrations unchanged; map VITE_SUPABASE_ANON_KEY to the generated public key at build time, and opt into external OAuth only with VITE_AUTH_PROVIDER=supabase.
 - Deploy the full TanStack Start server through Nitro platform presets, never SPA catch-all rewrites, because authentication and AI require server functions.

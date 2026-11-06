@@ -3,37 +3,13 @@ import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { limiteFotos } from "./plano";
+import { imagensAnaliseSchema } from "./plano";
 import { provedorFoto } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
 
-function inicioDoMes() {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString();
-}
-
 type ClienteSb = { from: (t: "analises_foto") => any; rpc: (...a: any[]) => any };
-
-async function fotosUsadasNoMes(supabase: ClienteSb, userId: string) {
-  const { data, error } = await supabase
-    .from("analises_foto")
-    .select("fotos")
-    .eq("user_id", userId)
-    .gte("created_at", inicioDoMes());
-  if (error) throw new Error("Não consegui verificar seu limite de fotos.");
-  return ((data ?? []) as { fotos: number }[]).reduce((t, r) => t + r.fotos, 0);
-}
-
-export const consultarUsoFotos = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const sb = context.supabase as unknown as ClienteSb;
-    const usadas = await fotosUsadasNoMes(sb, context.userId);
-    const limite = limiteFotos();
-    return { usadas, limite, restantes: Math.max(0, limite - usadas) };
-  });
 
 function criarProvedor() {
   const chave = process.env["LOVABLE_API_KEY"];
@@ -62,30 +38,11 @@ function erroAmigavel(e: unknown) {
 }
 
 export const analisarFoto = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
-    z
-      .object({
-        imagens: z.array(z.string().min(50).max(12_000_000)).min(1).max(2),
-      })
-      .parse(input),
-  )
+  .inputValidator((input: unknown) => imagensAnaliseSchema.parse(input))
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     try {
       const sb = context.supabase as unknown as ClienteSb;
-      const usadas = await fotosUsadasNoMes(sb, context.userId);
-      const limite = limiteFotos();
-      const restantes = limite - usadas;
-      if (data.imagens.length > restantes) {
-        return {
-          ok: false as const,
-          itens: [],
-          erro:
-            restantes <= 0
-              ? `Você já usou suas ${limite} fotos deste mês. O limite renova no dia 1º.`
-              : `Você só tem ${restantes} foto restante neste mês. Remova uma das fotos.`,
-        };
-      }
       const messages = [
           {
             role: "user" as const,
@@ -163,10 +120,15 @@ export const analisarFoto = createServerFn({ method: "POST" })
                 : undefined,
           };
         });
-      const { error: erroRegistro } = await sb
-        .from("analises_foto")
-        .insert({ user_id: context.userId, fotos: data.imagens.length });
-      if (erroRegistro) throw new Error("Não consegui registrar o uso de fotos.");
+      // Usage is telemetry only: it must never block an analysis.
+      try {
+        const { error: erroRegistro } = await sb
+          .from("analises_foto")
+          .insert({ user_id: context.userId, fotos: data.imagens.length });
+        if (erroRegistro) console.error("Falha ao registrar estatística de fotos.");
+      } catch {
+        console.error("Falha ao registrar estatística de fotos.");
+      }
       return { ok: true as const, itens };
     } catch (e) {
       return { ok: false as const, erro: erroAmigavel(e), itens: [] };

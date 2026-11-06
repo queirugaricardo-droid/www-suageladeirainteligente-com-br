@@ -82,7 +82,7 @@ const perguntas = [
   {
     pergunta: "Quantas fotos posso analisar?",
     resposta:
-      "O limite é de 2 fotos por mês por conta. Enviar dois ângulos na mesma análise consome as duas fotos do mês. O limite renova no dia 1º.",
+      "Você pode enviar fotos e realizar análises sem limite de quantidade no aplicativo. A disponibilidade depende do serviço de IA.",
   },
   {
     pergunta: "A identificação da foto pode ser corrigida?",
@@ -152,7 +152,7 @@ function PaginaOferta() {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-              <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> 2 fotos por mês</span>
+              <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> Fotos ilimitadas</span>
               <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> Estoque salvo na conta</span>
               <span className="flex items-center gap-2"><Check className="size-4 text-primary" /> Lista no WhatsApp</span>
             </div>
@@ -191,7 +191,7 @@ function PaginaOferta() {
           </div>
           <div className="mt-10 grid gap-4 md:grid-cols-3">
             {[
-              { numero: "01", icon: Camera, titulo: "Fotografe", texto: "Tire ou envie até duas fotos da sua geladeira aberta." },
+              { numero: "01", icon: Camera, titulo: "Fotografe", texto: "Tire ou envie fotos da sua geladeira aberta." },
               { numero: "02", icon: WandSparkles, titulo: "Revise a análise", texto: "Confira os alimentos e ajuste qualquer nome ou quantidade." },
               { numero: "03", icon: ListChecks, titulo: "Compre com clareza", texto: "Veja o que falta e leve a lista organizada no celular." },
             ].map(({ numero, icon: Icon, titulo, texto }) => (
@@ -243,7 +243,7 @@ function PaginaOferta() {
             <h3 className="mt-3 text-3xl font-extrabold">Organize sua cozinha</h3>
             <ul className="mt-7 space-y-3 text-sm">
               {[
-                "Até 2 fotos por mês",
+                "Fotos e análises ilimitadas",
                 "Análise de alimentos com IA",
                 "Estoque ideal salvo na conta",
                 "Lista de compras categorizada",
@@ -257,7 +257,7 @@ function PaginaOferta() {
               <Link to="/cadastro">Criar minha conta <ArrowRight /></Link>
             </Button>
             <p className="mt-3 text-center text-xs leading-relaxed text-muted-foreground">
-              Até 2 fotos por mês por conta.
+              Fotos e análises sem limite de quantidade.
             </p>
           </div>
         </div>
