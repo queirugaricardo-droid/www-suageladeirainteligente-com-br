@@ -6,7 +6,7 @@ Este guia prepara uma **cópia independente**, sem desligar o aplicativo atual. 
 
 - Com `GEMINI_API_KEY` no servidor, fotos e estimativas de preços usam Google Gemini diretamente. Sem essa chave, continua o Lovable AI Gateway com o modelo atual.
 - O modelo direto padrão é `gemini-2.5-flash`; `GEMINI_MODEL` permite indicar outro modelo compatível com imagens, respostas JSON e streaming. Confirme disponibilidade na sua conta Google.
-- O mesmo prompt, revisão antes de salvar, catálogo privado, histórico e cota de **2 fotos por mês** continuam sendo usados. Uma falha do Gemini não muda automaticamente de provedor nem registra uma análise bem-sucedida.
+- O mesmo prompt, revisão antes de salvar, catálogo privado, histórico continuam sendo usados, sem cota de quantidade de fotos ou análises. Uma falha do Gemini não muda automaticamente de provedor nem registra uma análise bem-sucedida.
 - `VITE_SUPABASE_ANON_KEY` tem prioridade sobre a chave pública atual, por um alias de compilação. `VITE_SUPABASE_URL` já era configurável. Os arquivos gerenciados pela Lovable permanecem intactos. Sem novos valores, ficam as configurações atuais.
 - `vercel.json` e `netlify.toml` preservam o aplicativo completo. **Não é uma SPA estática:** cadastro, IA e funções privadas precisam do servidor TanStack Start. Não adicione um redirecionamento de tudo para `index.html`; o Nitro gera as rotas corretas.
 - Dentro da Lovable nada precisa ser alterado. A chave Gemini não está configurada neste projeto, portanto o caminho direto ainda precisa de teste real após você fornecer uma chave.
@@ -98,7 +98,7 @@ Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o coman
 5. Limites documentados: banco até 15 GB, arquivo até 5 GB e uma exportação a cada 24 horas. O banco precisa estar em execução.
 6. Restaure em um **projeto externo novo**, seguindo https://supabase.com/docs/guides/platform/migrating-within-supabase. O método depende do formato baixado: se for dump custom, use `pg_restore`; se for SQL, use `psql`. A restauração completa de Auth exige conexão administrativa ao destino e orientação técnica; não cole um dump completo no SQL Editor nem importe tudo como CSV.
 7. Peça ajuda técnica para conferir conflitos com schemas gerenciados, ownership, roles e versões. Preserve IDs dos usuários de `auth.users` e IDs de catálogo/histórico/estoque: recriar contas com IDs novos quebra a associação dos dados. Hashes de senha estão no export, mas teste login após restaurar antes de prometer migração concluída.
-8. Não misture migrations de banco vazio com restauração completa. Reconfigure provedores, e-mails e URLs; teste gatilho de cadastro, consentimento, RLS, funções de confirmação e cota mensal.
+8. Não misture migrations de banco vazio com restauração completa. Reconfigure provedores, e-mails e URLs; teste gatilho de cadastro, consentimento, RLS, funções de confirmação e análises sucessivas.
 9. Faça uma exportação final e planeje uma janela sem novas gravações antes de trocar o domínio, para não perder alterações feitas entre cópia e troca. Mantenha a origem intacta até validar o destino.
 
 ## 6. Checklist antes de mudar o domínio
@@ -106,7 +106,7 @@ Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o coman
 - Cadastro real com e-mail recebido e confirmado; login válido/inválido; Google; recuperação completa; sair e entrar novamente após recarregar.
 - Duas contas: catálogo, estoque, perfil e histórico de uma não aparecem na outra.
 - Uma foto real → alimentos em revisão → corrigir → confirmar → histórico e catálogo → recarregar. Resultado incerto nunca é salvo antes da confirmação.
-- Conferir cota de 2 fotos/mês e bloqueio no terceiro envio. **Os logs `analises_foto` precisam migrar**, ou a cópia perde o consumo mensal anterior.
+- Conferir análises sucessivas e envio de mais de duas fotos, sem bloqueio por quantidade. Os registros `analises_foto` são apenas estatísticas, não cotas.
 - Lista de compras, frequência e WhatsApp; preços continuam estimados, não ofertas verificadas.
 - `/oferta` permanece estática e independente de login. Não há cobrança Stripe ou plano pago liberado.
 - Verificar logs de servidor, funções e tempos máximos da hospedagem: análises podem demorar; ajuste limites compatíveis com o plano escolhido.
@@ -123,8 +123,8 @@ Em https://app.netlify.com importe o mesmo GitHub. `netlify.toml` define o coman
 ### Verificação desta preparação
 
 - Compilação automática: OK. 16 testes passaram (provedor opcional, chave pública, resposta Gemini, cota e validações existentes).
-- Preview com sessão autenticada: perfil e catálogo carregaram sem erro; histórico consultado e vazio; contador confirmou 1 de 2 fotos restantes. Nenhum erro de execução observado.
-- Não enviei foto nova para não consumir a última foto mensal da conta. Análise real completa, gravação/recarga do histórico, Gemini direto e publicação externa ainda não foram verificados nesta preparação. Não confunda testes de seleção de provedor com teste real de reconhecimento.
+- Preview com sessão autenticada: perfil e catálogo carregaram sem erro; histórico consultado e vazio; o contador mensal foi removido na atualização para fotos ilimitadas. Nenhum erro de execução observado.
+- A validação inicial de portabilidade não incluiu uma nova foto. Análise real completa, gravação/recarga do histórico, Gemini direto e publicação externa ainda não foram verificados nesta preparação. Não confunda testes de seleção de provedor com teste real de reconhecimento.
 
 1. **Supabase externo:** criar conta/projeto e guardar credenciais — https://supabase.com/dashboard.
 2. **Google:** criar chave Gemini, OAuth e autorizar cobrança/cotas — https://aistudio.google.com/apikey e https://console.cloud.google.com.
