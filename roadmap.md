@@ -1,5 +1,9 @@
 # Geladeira Inteligente — tarefas
 
+## Pedido atual — fotos ilimitadas
+- [ ] Remover limites de quantidade no envio, análise e mensagens, preservando IA e dados
+- [ ] Auditar banco e testar análises sucessivas e envio de mais de duas fotos
+
 ## Pedido atual — portabilidade sem desligar Lovable
 - [x] IA direta Gemini opcional, preservando o Gateway sem chave
 - [x] Configuração externa por ambiente e deploy full-stack na Vercel/Netlify
