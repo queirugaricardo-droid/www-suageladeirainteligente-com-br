@@ -4,8 +4,8 @@ Este guia prepara uma **cópia independente**, sem desligar o aplicativo atual. 
 
 ## O que foi preparado
 
-- Com `GEMINI_API_KEY` no servidor, fotos e estimativas de preços usam Google Gemini diretamente. Sem essa chave, continua o Lovable AI Gateway com o modelo atual.
-- O modelo direto padrão é `gemini-2.5-flash`; `GEMINI_MODEL` permite indicar outro modelo compatível com imagens, respostas JSON e streaming. Confirme disponibilidade na sua conta Google.
+- Com `GEMINI_API_KEY` no servidor, fotos usam Google Gemini diretamente no modelo `gemini-2.5-flash`. Sem essa chave, a análise de fotos informa que falta configuração; ela nunca usa o Lovable AI Gateway.
+- Estimativas de preços usam Gemini diretamente quando `GEMINI_API_KEY` está configurada e mantêm o Lovable AI Gateway como alternativa quando ela não está. `GEMINI_MODEL` pode indicar outro modelo compatível para estimativas; a análise de fotos permanece no `gemini-2.5-flash`.
 - O mesmo prompt, revisão antes de salvar, catálogo privado, histórico continuam sendo usados, sem cota de quantidade de fotos ou análises. Uma falha do Gemini não muda automaticamente de provedor nem registra uma análise bem-sucedida.
 - `VITE_SUPABASE_ANON_KEY` tem prioridade sobre a chave pública atual, por um alias de compilação. `VITE_SUPABASE_URL` já era configurável. Os arquivos gerenciados pela Lovable permanecem intactos. Sem novos valores, ficam as configurações atuais.
 - `vercel.json` e `netlify.toml` preservam o aplicativo completo. **Não é uma SPA estática:** cadastro, IA e funções privadas precisam do servidor TanStack Start. Não adicione um redirecionamento de tudo para `index.html`; o Nitro gera as rotas corretas.

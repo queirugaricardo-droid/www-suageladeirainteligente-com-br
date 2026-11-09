@@ -4,7 +4,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { imagensAnaliseSchema } from "./plano";
-import { provedorFoto } from "./deploy-config";
+import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 const MODELO = "openai/gpt-6-astra";
@@ -73,28 +73,16 @@ export const analisarFoto = createServerFn({ method: "POST" })
             ],
           },
         ];
-      const geminiKey = process.env["GEMINI_API_KEY"]?.trim();
-      let texto: string;
-      if (provedorFoto(geminiKey) === "gemini" && geminiKey) {
-        const { gerarJsonGemini } = await import("./gemini.server");
-        const prompt = messages[0]?.content.find(part => part.type === "text");
-        texto = await gerarJsonGemini(geminiKey, prompt?.type === "text" ? prompt.text : "", data.imagens, process.env["GEMINI_MODEL"]?.trim() || undefined);
-      } else {
-      const resultado = streamText({
-        model: criarProvedor().responses(MODELO),
-        providerOptions: {
-          openai: {
-            store: false,
-            forceReasoning: true,
-            reasoningEffort: "high",
-            reasoningSummary: "auto",
-            include: ["reasoning.encrypted_content"],
-          },
-        },
-        messages,
-      });
-        texto = await resultado.text;
-      }
+      const geminiKey = chaveGemini(process.env["GEMINI_API_KEY"]);
+      if (!geminiKey) throw new Error("A análise de fotos não está configurada. Defina GEMINI_API_KEY no servidor.");
+      const { gerarJsonGemini } = await import("./gemini.server");
+      const prompt = messages[0]?.content.find(part => part.type === "text");
+      const texto = await gerarJsonGemini(
+        geminiKey,
+        prompt?.type === "text" ? prompt.text : "",
+        data.imagens,
+        "gemini-2.5-flash",
+      );
       const json = extrairJson(texto) as {
           itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
       };

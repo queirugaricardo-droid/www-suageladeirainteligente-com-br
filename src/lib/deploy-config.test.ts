@@ -1,11 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chavePublica, provedorFoto } from "./deploy-config";
+import { chaveGemini, chavePublica } from "./deploy-config";
 import { imagemInline, textoGemini } from "./gemini-response";
 
-test("sem GEMINI_API_KEY mantém Lovable", () => assert.equal(provedorFoto(undefined), "lovable"));
-test("GEMINI_API_KEY seleciona Gemini direto", () => assert.equal(provedorFoto("test-key"), "gemini"));
-test("chave vazia não desliga Gateway", () => assert.equal(provedorFoto("  "), "lovable"));
+test("a análise de fotos exige uma GEMINI_API_KEY não vazia", () => {
+  assert.equal(chaveGemini(undefined), undefined);
+  assert.equal(chaveGemini("  "), undefined);
+  assert.equal(chaveGemini(" test-key "), "test-key");
+});
 test("ANON_KEY externa tem prioridade sobre valor atual", () => assert.equal(chavePublica("external", "current"), "external"));
 test("sem ANON_KEY preserva publishable atual", () => assert.equal(chavePublica(undefined, "current"), "current"));
 test("Gemini usa bytes da foto e ignora raciocínio", () => {
