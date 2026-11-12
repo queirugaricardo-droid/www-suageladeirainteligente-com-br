@@ -81,7 +81,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
         geminiKey,
         prompt?.type === "text" ? prompt.text : "",
         data.imagens,
-        "gemini-2.5-flash",
+        "gemini-3.5-flash",
       );
       const json = extrairJson(texto) as {
           itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
