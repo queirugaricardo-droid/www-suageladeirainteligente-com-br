@@ -99,10 +99,8 @@ function unidadeBase(unidade: string): { tipo: string; fator: number } | undefin
   return undefined;
 }
 
-function mediana(valores: number[]) {
-  const ordenados = [...valores].sort((a, b) => a - b);
-  const meio = Math.floor(ordenados.length / 2);
-  return ordenados.length % 2 ? ordenados[meio]! : (ordenados[meio - 1]! + ordenados[meio]!) / 2;
+function media(valores: number[]) {
+  return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
 }
 
 async function buscarJson<T>(url: string): Promise<T> {
@@ -220,7 +218,7 @@ export async function consultarPrecosObservados(
           };
         }
 
-        const precoPacote = mediana(valores);
+        const precoPacote = media(valores);
         const preco = mediaUnidade(
           precoPacote,
           item.quantidade,
@@ -264,7 +262,7 @@ export async function consultarPrecosObservados(
       ? "ofertas com lojas cadastradas em até 5 km"
       : filtros.local
         ? `ofertas associadas a ${filtros.local}`
-        : "mediana das ofertas online monitoradas no Brasil";
+        : "média das ofertas online monitoradas no Brasil";
   const observacao = [
     `Valores observados em ${escopo}; a base pode não cobrir todos os mercados ou produtos.`,
     dataMaisRecente ? `Coleta mais recente entre os itens: ${dataMaisRecente.slice(0, 10)}.` : "",
