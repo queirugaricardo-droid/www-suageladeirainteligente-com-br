@@ -1,5 +1,10 @@
 # Geladeira Inteligente — tarefas
 
+## Pedido atual — restaurar análise e conferir configuração enviada
+- [x] Identificar erro publicado: serviço de IA retornou 402; GEMINI_API_KEY ausente no ambiente Lovable
+- [x] Conferir imagem da configuração externa e orientar salvamento seguro e nova publicação sem transcrever credenciais
+- [ ] Verificar análise real com Gemini — depende de chave válida cadastrada pelo dono no ambiente que executa o site
+
 ## Pedido atual — fotos ilimitadas
 - [x] Remover limites de quantidade no envio, análise e mensagens, preservando IA e dados
 - [x] Auditar banco (nenhuma regra de cota), validar envio de três fotos autenticado; 18 testes e build OK
