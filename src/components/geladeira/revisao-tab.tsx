@@ -29,7 +29,12 @@ type Props = {
 const LIMITE_ALTA_CONFIANCA = 0.9;
 
 function seloConfianca(confianca?: number) {
-  if (confianca === undefined || confianca >= LIMITE_ALTA_CONFIANCA) {
+  if (
+    typeof confianca === "number" &&
+    Number.isFinite(confianca) &&
+    confianca >= LIMITE_ALTA_CONFIANCA &&
+    confianca <= 1
+  ) {
     return { texto: "Alta confiança", classe: "bg-primary/15 text-primary", revisar: false };
   }
   return { texto: "Revisar", classe: "bg-chart-4/25 text-chart-4", revisar: true };
@@ -66,7 +71,7 @@ export function RevisaoTab({ itens, aoConfirmar, aoVoltar, salvando = false }: P
         const unidade = item.unidade.toLowerCase();
         const passo = unidade === "g" || unidade === "ml" ? 50 : unidade === "kg" || unidade === "l" ? 0.1 : 1;
         const quantidade = Math.max(0, Math.round((item.quantidade + direcao * passo) * 100) / 100);
-        return { ...item, quantidade, confianca: 1, estimado: false };
+        return { ...item, quantidade, estimado: false };
       }),
     );
   };

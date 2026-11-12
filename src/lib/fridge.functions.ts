@@ -78,7 +78,10 @@ export const analisarFoto = createServerFn({ method: "POST" })
           const unidade = typeof i.unidade === "string" ? i.unidade : "un";
           const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
           const estimado = i.estimado === true || pesoOuVolume;
-          const confiancaBase = typeof i.confianca === "number" ? i.confianca : undefined;
+          const confiancaBase =
+            typeof i.confianca === "number" && Number.isFinite(i.confianca)
+              ? Math.max(0, Math.min(i.confianca, 1))
+              : undefined;
           return {
             nome: String(i.nome).trim(),
             quantidade: Number(i.quantidade) > 0 ? Number(i.quantidade) : 1,
