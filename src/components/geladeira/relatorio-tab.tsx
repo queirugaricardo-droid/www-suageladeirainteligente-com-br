@@ -499,7 +499,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             </Button>
             <Input
               className="h-9 w-56"
-              placeholder="Ou digite uma cidade"
+              placeholder="Digite cidade ou CEP"
               value={localManual}
               onChange={(e) => {
                 setLocalManual(e.target.value);

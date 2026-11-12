@@ -22,6 +22,12 @@ type ProductResponse = {
   }>;
 };
 
+type CepResponse = {
+  localidade?: string;
+  uf?: string;
+  erro?: boolean;
+};
+
 const BASE_URL = "https://www.precomelhor.com.br/api";
 const STOP_WORDS = new Set([
   "a",
@@ -114,6 +120,20 @@ async function buscarJson<T>(url: string): Promise<T> {
   return (await resposta.json()) as T;
 }
 
+async function resolverLocalidade(local?: string) {
+  const cep = local?.replace(/\D/g, "") ?? "";
+  if (cep.length !== 8) return local;
+
+  try {
+    const endereco = await buscarJson<CepResponse>(`https://viacep.com.br/ws/${cep}/json/`);
+    if (endereco.erro || !endereco.localidade) return local;
+    return [endereco.localidade, endereco.uf].filter(Boolean).join(", ");
+  } catch {
+    // Preserve the user's input if ViaCEP is unavailable; the search will not crash.
+    return local;
+  }
+}
+
 function mediaUnidade(
   precoOferta: number,
   quantidade: number,
@@ -175,6 +195,8 @@ export async function consultarPrecosObservados(
   if (itens.length > 20)
     throw new Error("Consulte até 20 itens por vez para respeitar a cota da fonte de preços.");
 
+  const localResolvido = await resolverLocalidade(filtros.local);
+
   const resultados = await Promise.all(
     itens.map(async (item) => {
       try {
@@ -203,7 +225,7 @@ export async function consultarPrecosObservados(
           dados.prices ?? [],
           filtros.mercado,
           filtros.coordenadas,
-          filtros.local,
+          localResolvido,
         );
         const valores = ofertas
           .map((oferta) => Number(oferta.promo_price ?? oferta.price))
@@ -260,8 +282,8 @@ export async function consultarPrecosObservados(
     ? `ofertas encontradas para ${filtros.mercado}`
     : filtros.coordenadas
       ? "ofertas com lojas cadastradas em até 5 km"
-      : filtros.local
-        ? `ofertas associadas a ${filtros.local}`
+      : localResolvido
+        ? `ofertas associadas a ${localResolvido}`
         : "média das ofertas online monitoradas no Brasil";
   const observacao = [
     `Valores observados em ${escopo}; a base pode não cobrir todos os mercados ou produtos.`,
