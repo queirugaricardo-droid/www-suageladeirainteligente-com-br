@@ -24,7 +24,7 @@ const priceSchema = {
 };
 
 /** Credentials are passed only from a server-function handler. Never retry or switch on failure. */
-export async function gerarJsonGemini(chave: string, prompt: string, imagens: string[] = [], model = "gemini-2.5-flash") {
+export async function gerarJsonGemini(chave: string, prompt: string, imagens: string[] = [], model = "gemini-3.5-flash") {
   const ai = new GoogleGenAI({ apiKey: chave });
   let response;
   try {
