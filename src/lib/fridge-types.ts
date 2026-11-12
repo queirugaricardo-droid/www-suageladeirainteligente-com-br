@@ -71,4 +71,7 @@ export type Loja = {
 export type PrecoEstimado = {
   nome: string;
   precoUnitario: number;
+  produto?: string;
+  mercado?: string;
+  atualizadoEm?: string;
 };

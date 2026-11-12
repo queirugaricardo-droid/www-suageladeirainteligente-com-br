@@ -295,7 +295,16 @@ function PaginaOferta() {
       <footer className="border-t border-border bg-background py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-muted-foreground sm:flex-row sm:px-6 sm:text-left">
           <Marca />
-          <p>Organização prática para a sua cozinha.</p>
+          <div className="space-y-1">
+            <p>Organização prática para a sua cozinha.</p>
+            <p>
+              Dados de preços de produtos e mercados por{" "}
+              <a className="underline underline-offset-4" href="https://www.precomelhor.com.br" target="_blank" rel="noopener noreferrer">
+                PreçoMelhor
+              </a>
+              .
+            </p>
+          </div>
         </div>
       </footer>
     </main>

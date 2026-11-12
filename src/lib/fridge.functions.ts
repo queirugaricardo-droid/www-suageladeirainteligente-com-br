@@ -1,25 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
-import { streamText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { imagensAnaliseSchema } from "./plano";
 import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
-const MODELO = "openai/gpt-6-astra";
-
 type ClienteSb = { from: (t: "analises_foto") => any; rpc: (...a: any[]) => any };
-
-function criarProvedor() {
-  const chave = process.env["LOVABLE_API_KEY"];
-  if (!chave) throw new Error("O serviço de IA não está configurado.");
-  return createOpenAI({
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey: chave,
-    headers: { "Lovable-API-Key": chave, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-  });
-}
 
 function extrairJson(texto: string) {
   const limpo = texto.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -128,68 +114,42 @@ export const estimarPrecos = createServerFn({ method: "POST" })
     z
       .object({
         itens: z
-          .array(z.object({ nome: z.string(), quantidade: z.number(), unidade: z.string() }))
+          .array(
+            z.object({
+              nome: z.string().trim().min(1).max(200),
+              quantidade: z.number().positive().max(10_000),
+              unidade: z.string().trim().min(1).max(20),
+            }),
+          )
           .min(1)
-          .max(60),
+          .max(20),
         local: z.string().max(200).optional(),
         mercado: z.string().max(200).optional(),
+        lat: z.number().min(-90).max(90).optional(),
+        lng: z.number().min(-180).max(180).optional(),
+      })
+      .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
+        message: "Informe latitude e longitude juntas.",
       })
       .parse(input),
   )
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const local = data.local?.trim() || "Brasil (média nacional)";
-      const messages = [
-          {
-            role: "user" as const,
-            content: [
-              `Estime o preço em reais (BRL) de cada item de supermercado abaixo na região: ${local}.`,
-              data.mercado ? `Considere os preços típicos do mercado: ${data.mercado}.` : "",
-              "Considere a quantidade indicada de cada item e devolva o preço total daquela quantidade.",
-              'Responda APENAS com JSON: {"precos":[{"nome":"leite","precoUnitario":5.49}],"observacao":"texto curto"}.',
-              "Itens:",
-              data.itens.map((i) => `- ${i.nome}: ${i.quantidade} ${i.unidade}`).join("\n"),
-            ]
-              .filter(Boolean)
-              .join("\n"),
-          },
-        ];
-      const geminiKey = process.env["GEMINI_API_KEY"]?.trim();
-      let texto: string;
-      if (geminiKey) {
-        const { gerarJsonGemini } = await import("./gemini.server");
-        texto = await gerarJsonGemini(geminiKey, messages[0]?.content ?? "", [], process.env["GEMINI_MODEL"]?.trim() || undefined);
-      } else {
-      const resultado = streamText({
-        model: criarProvedor().responses(MODELO),
-        providerOptions: {
-          openai: {
-            store: false,
-            forceReasoning: true,
-            reasoningEffort: "low",
-            reasoningSummary: "auto",
-            include: ["reasoning.encrypted_content"],
-          },
-        },
-        messages,
+      const { consultarPrecosObservados } = await import("./market-prices.server");
+      const resultado = await consultarPrecosObservados(data.itens, {
+        ...(data.mercado ? { mercado: data.mercado } : {}),
+        ...(data.local ? { local: data.local } : {}),
+        ...(data.lat !== undefined && data.lng !== undefined ? { coordenadas: { lat: data.lat, lng: data.lng } } : {}),
       });
-        texto = await resultado.text;
-      }
-      const json = extrairJson(texto) as {
-        precos?: Array<{ nome?: string; precoUnitario?: number }>;
-        observacao?: string;
-      };
-      const precos = (json.precos ?? [])
-        .filter((p) => typeof p.nome === "string" && Number(p.precoUnitario) >= 0)
-        .map((p) => ({ nome: String(p.nome), precoUnitario: Number(p.precoUnitario) }));
       return {
         ok: true as const,
-        precos,
-        observacao: typeof json.observacao === "string" ? json.observacao : "",
-        local,
+        ...resultado,
+        local: data.lat !== undefined ? data.local?.trim() ?? "" : "",
       };
     } catch (e) {
-      return { ok: false as const, erro: erroAmigavel(e), precos: [], observacao: "", local: "" };
+      const erro = e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
+      return { ok: false as const, erro, precos: [], observacao: "", dataColeta: "", local: "" };
     }
   });
 

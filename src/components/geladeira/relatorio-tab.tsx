@@ -58,6 +58,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [observacao, setObservacao] = useState("");
   const [local, setLocal] = useState("");
   const [localManual, setLocalManual] = useState("");
+  const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
   const [lojas, setLojas] = useState<Loja[]>([]);
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
@@ -187,8 +188,10 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
+          const localizacao = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setCoordenadas(localizacao);
           const resposta = await mercados({
-            data: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+            data: localizacao,
           });
           setLojas(resposta.lojas);
           if (resposta.local) setLocal(resposta.local);
@@ -219,6 +222,10 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
   const calcularPrecos = async (mercado?: string) => {
     if (faltantes.length === 0) return;
+    if (faltantes.length > 20) {
+      toast.error("A fonte gratuita permite consultar até 20 itens por vez.");
+      return;
+    }
     setCarregandoPrecos(true);
     try {
       const resposta = await orcar({
@@ -228,8 +235,10 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             quantidade: l.faltam || l.item.quantidade,
             unidade: l.item.unidade,
           })),
-          local: localManual.trim() || local || "",
+          local: coordenadas ? local : localManual.trim() || local || "",
           mercado: mercado || "",
+          lat: coordenadas?.lat,
+          lng: coordenadas?.lng,
         },
       });
       if (!resposta.ok) {
@@ -239,9 +248,11 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setPrecos(resposta.precos);
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
-      toast.success(
-        mercado ? `Preços atualizados para ${mercado}.` : "Preços estimados com sucesso.",
-      );
+      if (resposta.precos.some((preco) => preco.precoUnitario > 0)) {
+        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Preços observados consultados.");
+      } else {
+        toast.error("Não encontrei preços observados compatíveis com os itens e a região.");
+      }
     } catch {
       toast.error("Não consegui estimar os preços agora. Tente de novo em instantes.");
     } finally {
@@ -483,9 +494,12 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             </Button>
             <Input
               className="h-9 w-56"
-              placeholder="Ou digite cidade, bairro ou CEP"
+              placeholder="Ou digite uma cidade"
               value={localManual}
-              onChange={(e) => setLocalManual(e.target.value)}
+              onChange={(e) => {
+                setLocalManual(e.target.value);
+                setCoordenadas(null);
+              }}
             />
             <Button
               onClick={() => calcularPrecos()}
@@ -641,7 +655,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Os valores são estimativas geradas por IA e podem variar de um mercado para outro.
+                Preços observados em lojas online e coletados pelo PreçoMelhor. Podem variar por filial,
+                promoções e disponibilidade; sem localização ou mercado específico, usamos a mediana das
+                ofertas disponíveis. Consulte até 20 itens por vez.
               </p>
             </>
           )}
