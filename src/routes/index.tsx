@@ -97,9 +97,15 @@ function Index() {
       confirmacaoId.current = null;
       setAba("relatorio");
       toast.success(exemploAtivo ? "Exemplo aberto; não foi salvo no histórico da conta." : dados.usuario ? "Análise e alimentos salvos na sua conta." : "Relatório salvo neste aparelho.");
-    } catch {
-      toast.error("Não foi possível salvar na conta. Sua revisão foi mantida; tente novamente.");
-    } finally {
+    } catch (erro) {
+  console.error("ERRO AO SALVAR ANÁLISE:", erro);
+
+  toast.error(
+    erro instanceof Error
+      ? erro.message
+      : "Falha ao salvar análise. Consulte o console."
+  );
+}finally {
       setSalvandoAnalise(false);
     }
   };
