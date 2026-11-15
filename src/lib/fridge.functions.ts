@@ -179,7 +179,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
   way["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
   relation["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
 );
-out center tags 40;`;
+out center 40;`;
 
     try {
       const resposta = await fetch("https://overpass-api.de/api/interpreter", {
