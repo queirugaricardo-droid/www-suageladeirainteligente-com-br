@@ -171,154 +171,115 @@ export const buscarMercados = createServerFn({ method: "POST" })
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    // OpenStreetMap/Overpass: não usa chave Google nem credencial do Lovable.
-    // A consulta é feita no servidor para não expor detalhes da integração no navegador.
-    const consulta = `[out:json][timeout:20];
-(
-  node["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
-  way["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
-  relation["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
-);
-out center 40;`;
+    // Geoapify Places API: pesquisa supermercados e lojas de conveniência
+    // num raio de 5 km. A chave fica exclusivamente no servidor (Vercel).
+    const apiKey = process.env["GEOAPIFY_API_KEY"]?.trim();
+    if (!apiKey) {
+      return {
+        ok: false as const,
+        conectado: false,
+        erro: "A busca de mercados ainda precisa ser configurada no servidor (GEOAPIFY_API_KEY).",
+        lojas: [],
+        local: "",
+      };
+    }
 
     try {
-      // Tenta mais de uma instância pública: a primeira pode estar sobrecarregada.
-      const servidores = [
-        // Instâncias globais públicas listadas pela comunidade OpenStreetMap.
-        "https://overpass.private.coffee/api/interpreter",
-        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-        "https://overpass-api.de/api/interpreter",
-        "https://lz4.overpass-api.de/api/interpreter",
-      ];
-      let resposta: Response | null = null;
-      let ultimoStatus = 0;
-      let ultimoErro = "";
+      const parametros = new URLSearchParams({
+        categories: "commercial.supermarket,commercial.convenience",
+        filter: `circle:${data.lng},${data.lat},5000`,
+        bias: `proximity:${data.lng},${data.lat}`,
+        limit: "100",
+        lang: "pt",
+        apiKey,
+      });
+      const resposta = await fetch(`https://api.geoapify.com/v2/places?${parametros.toString()}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(12_000),
+      });
 
-      for (const servidor of servidores) {
-        try {
-          // POST é o método preferido. Não forçamos Accept: alguns proxies/instâncias
-          // respondem 406 a essa negociação mesmo aceitando JSON normalmente.
-          let tentativa = await fetch(servidor, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-              "User-Agent": "GeladeiraInteligente/1.0 (OpenStreetMap market lookup)",
-            },
-            body: new URLSearchParams({ data: consulta }).toString(),
-            signal: AbortSignal.timeout(8_000),
-          });
-
-          // Algumas instâncias/proxies rejeitam POST ou a negociação de conteúdo.
-          // Nesses casos, repete a mesma consulta pela forma GET padrão do Overpass.
-          if ([405, 406, 415].includes(tentativa.status)) {
-            tentativa = await fetch(servidor + "?data=" + encodeURIComponent(consulta), {
-              method: "GET",
-              headers: { "User-Agent": "GeladeiraInteligente/1.0 (OpenStreetMap market lookup)" },
-              signal: AbortSignal.timeout(8_000),
-            });
-          }
-
-          if (tentativa.ok) {
-            resposta = tentativa;
-            break;
-          }
-          ultimoStatus = tentativa.status;
-          console.error("Instância Overpass respondeu com status " + tentativa.status + ".");
-        } catch (erro) {
-          ultimoErro = erro instanceof Error ? erro.message : "Falha de conexão";
-          console.error("Instância Overpass indisponível:", ultimoErro);
-        }
-      }
-
-      if (!resposta) {
-        return {
-          ok: false as const,
-          conectado: true,
-          erro: ultimoStatus === 429 || ultimoStatus === 503 || ultimoStatus === 504
-            ? "Os servidores gratuitos de mapas estão ocupados. Tente novamente em alguns instantes."
-            : ultimoStatus
-              ? "Não consegui consultar os mercados no OpenStreetMap (erro " + ultimoStatus + ")."
-              : "Os servidores do OpenStreetMap não responderam. Verifique a conexão e tente novamente.",
-          lojas: [],
-          local: "",
-        };
+      if (!resposta.ok) {
+        console.error("Geoapify Places respondeu com status " + resposta.status + ".");
+        const erro = resposta.status === 401 || resposta.status === 403
+          ? "A chave da busca de mercados é inválida ou não está autorizada. Confira GEOAPIFY_API_KEY no Vercel."
+          : resposta.status === 429
+            ? "O limite gratuito diário da busca de mercados foi atingido. Tente novamente amanhã."
+            : resposta.status >= 500
+              ? "O serviço de localização está temporariamente indisponível. Tente novamente em instantes."
+              : "Não foi possível consultar os mercados (erro " + resposta.status + ").";
+        return { ok: false as const, conectado: true, erro, lojas: [], local: "" };
       }
 
       const json = (await resposta.json()) as {
-        elements?: Array<{
-          type?: string;
-          id?: number;
-          lat?: number;
-          lon?: number;
-          center?: { lat?: number; lon?: number };
-          tags?: Record<string, string>;
+        features?: Array<{
+          properties?: {
+            name?: string;
+            formatted?: string;
+            address_line1?: string;
+            address_line2?: string;
+            street?: string;
+            housenumber?: string;
+            suburb?: string;
+            district?: string;
+            city?: string;
+            state?: string;
+            lat?: number;
+            lon?: number;
+            distance?: number;
+          };
         }>;
       };
 
       const vistos = new Set<string>();
-      const lojas = (json.elements ?? [])
-        .map((elemento) => {
-          const tags = elemento.tags ?? {};
-          const latitude = elemento.lat ?? elemento.center?.lat;
-          const longitude = elemento.lon ?? elemento.center?.lon;
-          const nome = tags.name?.trim();
-          if (!nome || latitude === undefined || longitude === undefined) return null;
-
-          const endereco = [
-            [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(", "),
-            tags["addr:suburb"],
-            tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"],
-            tags["addr:state"],
-          ]
-            .filter(Boolean)
-            .join(" - ");
+      const lojas = (json.features ?? [])
+        .map((feature) => {
+          const p = feature.properties ?? {};
+          const nome = p.name?.trim();
+          if (!nome || typeof p.lat !== "number" || typeof p.lon !== "number") return null;
+          const endereco = p.formatted?.trim() ||
+            [p.address_line1, p.address_line2].filter(Boolean).join(", ") ||
+            [p.street, p.housenumber].filter(Boolean).join(", ") ||
+            "Endereço não informado";
           const chave = nome.toLocaleLowerCase("pt-BR") + "|" + endereco.toLocaleLowerCase("pt-BR");
           if (vistos.has(chave)) return null;
           vistos.add(chave);
-
           return {
             nome,
-            endereco: endereco || tags["addr:full"] || tags["addr:street"] || "Endereço não informado no OpenStreetMap",
-            distanciaKm: distanciaKm(
-              { lat: data.lat, lng: data.lng },
-              { lat: latitude, lng: longitude },
-            ),
-            cidade: tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"] ?? "",
-            bairro: tags["addr:suburb"] ?? "",
+            endereco,
+            distanciaKm: typeof p.distance === "number"
+              ? Math.round((p.distance / 1000) * 10) / 10
+              : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
+            cidade: p.city ?? "",
+            bairro: p.suburb ?? p.district ?? "",
+            estado: p.state ?? "",
           };
         })
         .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
         .sort((a, b) => a.distanciaKm - b.distanciaKm)
         .slice(0, 8);
 
-      // Usa somente cidade/bairro cadastrados pelo próprio estabelecimento; não faz
-      // geocodificação reversa para evitar depender de outro serviço externo.
       const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
       const local = lojaComLocal
-        ? [lojaComLocal.bairro, lojaComLocal.cidade].filter(Boolean).join(", ")
+        ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
         : "";
 
       return {
         ok: true as const,
         conectado: true,
-        lojas: lojas.map(({ nome, endereco, distanciaKm }) => ({
-          nome,
-          endereco,
-          distanciaKm,
-        })),
+        lojas: lojas.map(({ nome, endereco, distanciaKm }) => ({ nome, endereco, distanciaKm })),
         local,
         erro: "",
       };
     } catch (e) {
       const mensagem = e instanceof Error ? e.message : "";
-      console.error("Falha ao consultar OpenStreetMap/Overpass.", mensagem);
+      console.error("Falha ao consultar Geoapify Places.", mensagem);
       return {
         ok: false as const,
         conectado: true,
-        erro:
-          mensagem.includes("Timeout") || mensagem.includes("aborted")
-            ? "A consulta gratuita de mapas demorou demais. Tente novamente."
-            : "Não foi possível consultar os mercados no OpenStreetMap agora.",
+        erro: mensagem.includes("Timeout") || mensagem.includes("aborted")
+          ? "A busca de mercados demorou demais. Tente novamente."
+          : "Não foi possível consultar os mercados próximos agora.",
         lojas: [],
         local: "",
       };

@@ -495,6 +495,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           <p className="text-xs text-muted-foreground">
             Localização dos estabelecimentos: dados do{" "}
             <a
+              href="https://www.geoapify.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Geoapify
+            </a>{" "}
+            e do{" "}
+            <a
               href="https://www.openstreetmap.org/copyright"
               target="_blank"
               rel="noreferrer"
