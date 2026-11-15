@@ -171,93 +171,113 @@ export const buscarMercados = createServerFn({ method: "POST" })
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const lovableKey = process.env["LOVABLE_API_KEY"];
-    const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
-    if (!lovableKey || !mapsKey) {
-      return {
-        ok: false as const,
-        conectado: false,
-        erro: "Os mercados próximos ainda não estão disponíveis: falta conectar o serviço de mapas.",
-        lojas: [],
-        local: "",
-      };
-    }
-
-    const base = "https://connector-gateway.lovable.dev/google_maps";
-    const headers = {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": mapsKey,
-      "Content-Type": "application/json",
-    };
+    // OpenStreetMap/Overpass: não usa chave Google nem credencial do Lovable.
+    // A consulta é feita no servidor para não expor detalhes da integração no navegador.
+    const consulta = `[out:json][timeout:20];
+(
+  node["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
+  way["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
+  relation["shop"~"^(supermarket|grocery|convenience)$"](around:5000,${data.lat},${data.lng});
+);
+out center 40;`;
 
     try {
-      const resposta = await fetch(`${base}/places/v1/places:searchNearby`, {
+      const resposta = await fetch("https://overpass-api.de/api/interpreter", {
         method: "POST",
-        headers: {
-          ...headers,
-          "X-Goog-FieldMask":
-            "places.displayName,places.formattedAddress,places.location,places.rating",
-        },
-        body: JSON.stringify({
-          includedTypes: ["supermarket", "grocery_store"],
-          maxResultCount: 8,
-          languageCode: "pt-BR",
-          locationRestriction: {
-            circle: { center: { latitude: data.lat, longitude: data.lng }, radius: 5000 },
-          },
-        }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+        body: new URLSearchParams({ data: consulta }).toString(),
+        signal: AbortSignal.timeout(25_000),
       });
 
       if (!resposta.ok) {
-        const corpo = await resposta.text();
-        console.error(`Gateway Google Maps falhou [${resposta.status}]: ${corpo}`);
+        console.error("Overpass API falhou [" + resposta.status + "].");
         return {
           ok: false as const,
           conectado: true,
-          erro: `Não consegui buscar mercados próximos (${resposta.status}).`,
+          erro:
+            resposta.status === 429 || resposta.status === 503
+              ? "O serviço gratuito de mapas está temporariamente ocupado. Tente novamente em alguns instantes."
+              : "Não consegui consultar os mercados no OpenStreetMap (" + resposta.status + ").",
           lojas: [],
           local: "",
         };
       }
 
       const json = (await resposta.json()) as {
-        places?: Array<{
-          displayName?: { text?: string };
-          formattedAddress?: string;
-          location?: { latitude: number; longitude: number };
-          rating?: number;
+        elements?: Array<{
+          type?: string;
+          id?: number;
+          lat?: number;
+          lon?: number;
+          center?: { lat?: number; lon?: number };
+          tags?: Record<string, string>;
         }>;
       };
 
-      const lojas = (json.places ?? []).map((p) => ({
-        nome: p.displayName?.text ?? "Mercado",
-        endereco: p.formattedAddress ?? "",
-        nota: p.rating,
-        distanciaKm: p.location
-          ? distanciaKm(
+      const vistos = new Set<string>();
+      const lojas = (json.elements ?? [])
+        .map((elemento) => {
+          const tags = elemento.tags ?? {};
+          const latitude = elemento.lat ?? elemento.center?.lat;
+          const longitude = elemento.lon ?? elemento.center?.lon;
+          const nome = tags.name?.trim();
+          if (!nome || latitude === undefined || longitude === undefined) return null;
+
+          const endereco = [
+            [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(", "),
+            tags["addr:suburb"],
+            tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"],
+            tags["addr:state"],
+          ]
+            .filter(Boolean)
+            .join(" - ");
+          const chave = nome.toLocaleLowerCase("pt-BR") + "|" + endereco.toLocaleLowerCase("pt-BR");
+          if (vistos.has(chave)) return null;
+          vistos.add(chave);
+
+          return {
+            nome,
+            endereco: endereco || tags["addr:full"] || tags["addr:street"] || "Endereço não informado no OpenStreetMap",
+            distanciaKm: distanciaKm(
               { lat: data.lat, lng: data.lng },
-              { lat: p.location.latitude, lng: p.location.longitude },
-            )
-          : undefined,
-      }));
-      lojas.sort((a, b) => (a.distanciaKm ?? 99) - (b.distanciaKm ?? 99));
+              { lat: latitude, lng: longitude },
+            ),
+            cidade: tags["addr:city"] ?? tags["addr:town"] ?? tags["addr:village"] ?? "",
+            bairro: tags["addr:suburb"] ?? "",
+          };
+        })
+        .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
+        .sort((a, b) => a.distanciaKm - b.distanciaKm)
+        .slice(0, 8);
 
-      let local = "";
-      const geo = await fetch(
-        `${base}/maps/api/geocode/json?latlng=${data.lat},${data.lng}&language=pt-BR`,
-        { headers },
-      );
-      if (geo.ok) {
-        const g = (await geo.json()) as { results?: Array<{ formatted_address?: string }> };
-        local = g.results?.[0]?.formatted_address ?? "";
-      }
+      // Usa somente cidade/bairro cadastrados pelo próprio estabelecimento; não faz
+      // geocodificação reversa para evitar depender de outro serviço externo.
+      const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
+      const local = lojaComLocal
+        ? [lojaComLocal.bairro, lojaComLocal.cidade].filter(Boolean).join(", ")
+        : "";
 
-      return { ok: true as const, conectado: true, lojas, local, erro: "" };
+      return {
+        ok: true as const,
+        conectado: true,
+        lojas: lojas.map(({ nome, endereco, distanciaKm }) => ({
+          nome,
+          endereco,
+          distanciaKm,
+        })),
+        local,
+        erro: "",
+      };
     } catch (e) {
+      const mensagem = e instanceof Error ? e.message : "";
+      console.error("Falha ao consultar OpenStreetMap/Overpass.", mensagem);
       return {
         ok: false as const,
         conectado: true,
-        erro: e instanceof Error ? e.message : "Falha ao buscar mercados próximos.",
+        erro:
+          mensagem.includes("Timeout") || mensagem.includes("aborted")
+            ? "A consulta gratuita de mapas demorou demais. Tente novamente."
+            : "Não foi possível consultar os mercados no OpenStreetMap agora.",
         lojas: [],
         local: "",
       };

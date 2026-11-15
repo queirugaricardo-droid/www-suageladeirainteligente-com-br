@@ -492,6 +492,18 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Localização dos estabelecimentos: dados do{" "}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              © OpenStreetMap contributors
+            </a>
+            .
+          </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
