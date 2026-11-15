@@ -182,22 +182,49 @@ export const buscarMercados = createServerFn({ method: "POST" })
 out center 40;`;
 
     try {
-      const resposta = await fetch("https://overpass-api.de/api/interpreter", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-        body: new URLSearchParams({ data: consulta }).toString(),
-        signal: AbortSignal.timeout(25_000),
-      });
+      // Tenta mais de uma instância pública: a primeira pode estar sobrecarregada.
+      const servidores = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.nchc.org.tw/api/interpreter",
+      ];
+      let resposta: Response | null = null;
+      let ultimoStatus = 0;
+      let ultimoErro = "";
 
-      if (!resposta.ok) {
-        console.error("Overpass API falhou [" + resposta.status + "].");
+      for (const servidor of servidores) {
+        try {
+          const tentativa = await fetch(servidor, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "Accept": "application/json",
+            },
+            body: new URLSearchParams({ data: consulta }).toString(),
+            signal: AbortSignal.timeout(18_000),
+          });
+          if (tentativa.ok) {
+            resposta = tentativa;
+            break;
+          }
+          ultimoStatus = tentativa.status;
+          console.error("Instância Overpass respondeu com status " + tentativa.status + ".");
+          // 4xx/5xx: tenta a próxima instância pública.
+        } catch (erro) {
+          ultimoErro = erro instanceof Error ? erro.message : "Falha de conexão";
+          console.error("Instância Overpass indisponível:", ultimoErro);
+        }
+      }
+
+      if (!resposta) {
         return {
           ok: false as const,
           conectado: true,
-          erro:
-            resposta.status === 429 || resposta.status === 503
-              ? "O serviço gratuito de mapas está temporariamente ocupado. Tente novamente em alguns instantes."
-              : "Não consegui consultar os mercados no OpenStreetMap (" + resposta.status + ").",
+          erro: ultimoStatus === 429 || ultimoStatus === 503 || ultimoStatus === 504
+            ? "Os servidores gratuitos de mapas estão ocupados. Tente novamente em alguns instantes."
+            : ultimoStatus
+              ? "Não consegui consultar os mercados no OpenStreetMap (erro " + ultimoStatus + ")."
+              : "Os servidores do OpenStreetMap não responderam. Verifique a conexão e tente novamente.",
           lojas: [],
           local: "",
         };
