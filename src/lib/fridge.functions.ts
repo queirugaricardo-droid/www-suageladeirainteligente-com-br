@@ -171,30 +171,23 @@ export const buscarMercados = createServerFn({ method: "POST" })
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const lovableKey = process.env["LOVABLE_API_KEY"];
     const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
-    if (!lovableKey || !mapsKey) {
+    if (!mapsKey) {
       return {
         ok: false as const,
         conectado: false,
-        erro: "Os mercados próximos ainda não estão disponíveis: falta conectar o serviço de mapas.",
+        erro: "Os mercados próximos ainda não estão disponíveis: falta configurar GOOGLE_MAPS_API_KEY na Vercel.",
         lojas: [],
         local: "",
       };
     }
 
-    const base = "https://connector-gateway.lovable.dev/google_maps";
-    const headers = {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": mapsKey,
-      "Content-Type": "application/json",
-    };
-
     try {
-      const resposta = await fetch(`${base}/places/v1/places:searchNearby`, {
+      const resposta = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
         method: "POST",
         headers: {
-          ...headers,
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": mapsKey,
           "X-Goog-FieldMask":
             "places.displayName,places.formattedAddress,places.location,places.rating",
         },
@@ -206,15 +199,19 @@ export const buscarMercados = createServerFn({ method: "POST" })
             circle: { center: { latitude: data.lat, longitude: data.lng }, radius: 5000 },
           },
         }),
+        signal: AbortSignal.timeout(12_000),
       });
 
       if (!resposta.ok) {
         const corpo = await resposta.text();
-        console.error(`Gateway Google Maps falhou [${resposta.status}]: ${corpo}`);
+        console.error("Google Places falhou [" + resposta.status + "]: " + corpo.slice(0, 500));
         return {
           ok: false as const,
           conectado: true,
-          erro: `Não consegui buscar mercados próximos (${resposta.status}).`,
+          erro:
+            resposta.status === 403
+              ? "O Google Maps recusou a solicitação. Confira se Places API (New), faturamento e restrições da chave estão configurados."
+              : "Não consegui buscar mercados próximos (" + resposta.status + ").",
           lojas: [],
           local: "",
         };
@@ -242,14 +239,26 @@ export const buscarMercados = createServerFn({ method: "POST" })
       }));
       lojas.sort((a, b) => (a.distanciaKm ?? 99) - (b.distanciaKm ?? 99));
 
+      // Reverse geocoding is optional: a failure here must not discard nearby markets.
       let local = "";
-      const geo = await fetch(
-        `${base}/maps/api/geocode/json?latlng=${data.lat},${data.lng}&language=pt-BR`,
-        { headers },
-      );
-      if (geo.ok) {
-        const g = (await geo.json()) as { results?: Array<{ formatted_address?: string }> };
-        local = g.results?.[0]?.formatted_address ?? "";
+      try {
+        const parametros = new URLSearchParams({
+          latlng: data.lat + "," + data.lng,
+          language: "pt-BR",
+          key: mapsKey,
+        });
+        const geo = await fetch(
+          "https://maps.googleapis.com/maps/api/geocode/json?" + parametros.toString(),
+          { signal: AbortSignal.timeout(8_000) },
+        );
+        if (geo.ok) {
+          const g = (await geo.json()) as { results?: Array<{ formatted_address?: string }> };
+          local = g.results?.[0]?.formatted_address ?? "";
+        } else {
+          console.error("Google Geocoding falhou [" + geo.status + "].");
+        }
+      } catch (erroGeocoding) {
+        console.error("Não foi possível obter o endereço por geocodificação reversa.", erroGeocoding);
       }
 
       return { ok: true as const, conectado: true, lojas, local, erro: "" };
