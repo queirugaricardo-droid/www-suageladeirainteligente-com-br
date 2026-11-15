@@ -194,22 +194,32 @@ out center 40;`;
 
       for (const servidor of servidores) {
         try {
-          const tentativa = await fetch(servidor, {
+          // POST é o método preferido. Não forçamos Accept: alguns proxies/instâncias
+          // respondem 406 a essa negociação mesmo aceitando JSON normalmente.
+          let tentativa = await fetch(servidor, {
             method: "POST",
             headers: {
               "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-              "Accept": "application/json",
             },
             body: new URLSearchParams({ data: consulta }).toString(),
-            signal: AbortSignal.timeout(18_000),
+            signal: AbortSignal.timeout(12_000),
           });
+
+          // Algumas instâncias/proxies rejeitam POST ou a negociação de conteúdo.
+          // Nesses casos, repete a mesma consulta pela forma GET padrão do Overpass.
+          if ([405, 406, 415].includes(tentativa.status)) {
+            tentativa = await fetch(servidor + "?data=" + encodeURIComponent(consulta), {
+              method: "GET",
+              signal: AbortSignal.timeout(12_000),
+            });
+          }
+
           if (tentativa.ok) {
             resposta = tentativa;
             break;
           }
           ultimoStatus = tentativa.status;
           console.error("Instância Overpass respondeu com status " + tentativa.status + ".");
-          // 4xx/5xx: tenta a próxima instância pública.
         } catch (erro) {
           ultimoErro = erro instanceof Error ? erro.message : "Falha de conexão";
           console.error("Instância Overpass indisponível:", ultimoErro);
