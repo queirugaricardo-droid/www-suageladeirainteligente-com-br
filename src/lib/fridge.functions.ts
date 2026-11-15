@@ -184,9 +184,11 @@ out center 40;`;
     try {
       // Tenta mais de uma instância pública: a primeira pode estar sobrecarregada.
       const servidores = [
+        // Instâncias globais públicas listadas pela comunidade OpenStreetMap.
+        "https://overpass.private.coffee/api/interpreter",
+        "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
         "https://overpass-api.de/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://overpass.nchc.org.tw/api/interpreter",
+        "https://lz4.overpass-api.de/api/interpreter",
       ];
       let resposta: Response | null = null;
       let ultimoStatus = 0;
@@ -200,9 +202,10 @@ out center 40;`;
             method: "POST",
             headers: {
               "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "User-Agent": "GeladeiraInteligente/1.0 (OpenStreetMap market lookup)",
             },
             body: new URLSearchParams({ data: consulta }).toString(),
-            signal: AbortSignal.timeout(12_000),
+            signal: AbortSignal.timeout(8_000),
           });
 
           // Algumas instâncias/proxies rejeitam POST ou a negociação de conteúdo.
@@ -210,7 +213,8 @@ out center 40;`;
           if ([405, 406, 415].includes(tentativa.status)) {
             tentativa = await fetch(servidor + "?data=" + encodeURIComponent(consulta), {
               method: "GET",
-              signal: AbortSignal.timeout(12_000),
+              headers: { "User-Agent": "GeladeiraInteligente/1.0 (OpenStreetMap market lookup)" },
+              signal: AbortSignal.timeout(8_000),
             });
           }
 
