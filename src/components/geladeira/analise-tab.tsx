@@ -127,7 +127,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
             <span>
               Fotos e análises ilimitadas
             </span>
-            <Button variant="ghost" size="sm" onClick={() => void sair().catch(() => toast.error("Não foi possível sair da conta."))}>
+            <Button variant="ghost" size="sm" onClick={() =>\n                void sair().catch(() => toast.error("Não foi possível sair da conta."))\n              }>
               Sair ({usuario.email})
             </Button>
           </div>
@@ -138,7 +138,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           accept="image/*"
           capture="environment"
           className="hidden"
-          onChange={(e) => { void escolher(e.target.files?.[0]); e.target.value = ""; }}
+          onChange={(e) => {\n            void escolher(e.target.files?.[0]);\n            e.target.value = "";\n          }}
         />
         <input
           ref={inputArquivo}
@@ -176,7 +176,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
               >
                 <ImagePlus className="size-7 text-primary" />
                 <span className="text-sm font-medium text-foreground">
-                   Adicionar foto (outro ângulo)
+                  Adicionar foto (outro ângulo)
                 </span>
               </Button>
           </div>
