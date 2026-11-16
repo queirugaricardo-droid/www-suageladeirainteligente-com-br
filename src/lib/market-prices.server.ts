@@ -73,6 +73,12 @@ function tokens(texto: string) {
     .filter((parte) => parte.length > 1 && !STOP_WORDS.has(parte));
 }
 
+// Aceita "cidade, UF" e o formato antigo "bairro, cidade, UF".
+function extrairCidade(local?: string) {
+  const partes = (local ?? "").split(",").map((parte) => parte.trim()).filter(Boolean);
+  return normalizar(partes.length >= 3 ? partes[1] : partes[0] ?? "");
+}
+
 
 function distanciaKm(origem: Coordinates, destino: Coordinates) {
   const rad = (graus: number) => (graus * Math.PI) / 180;
@@ -93,13 +99,13 @@ function coordenadasDaLoja(value?: string): Coordinates | undefined {
 }
 
 function normalizarCodigoProduto(codigo: string) {
-  const digitos = codigo.replace(/\\D/g, "");
+  const digitos = codigo.replace(/\D/g, "");
   // GTIN-14 com zero à esquerda representa o mesmo GTIN-13.
   return digitos.length === 14 && digitos.startsWith("0") ? digitos.slice(1) : digitos || codigo;
 }
 
 // Geocodificadores podem marcar entradas diferentes do mesmo estabelecimento.
-const RAIO_MAXIMO_FILIAL_KM = 0.75;
+const RAIO_MAXIMO_FILIAL_KM = 1.5;
 
 function correspondeFilialSelecionada(
   nomeSelecionado: string,
@@ -118,7 +124,7 @@ function correspondeFilialSelecionada(
     const comuns = tokensSelecionados.filter((token) => tokensEncontrados.includes(token));
     const nomesSuficientementeIdentificados =
       tokensSelecionados.length >= 2 && tokensEncontrados.length >= 2
-        ? comuns.length >= 2
+        ? comuns.length >= 1
         : normalizar(nomeSelecionado) === normalizar(nomeEncontrado);
 
     return (
@@ -192,9 +198,10 @@ async function resolverLocalidade(local?: string) {
   }
 }
 
+// Retorna o preço de UMA unidade da medida usada no estoque.
+// Quantidade faltante e frequência são aplicadas somente no relatório.
 function mediaUnidade(
   precoOferta: number,
-  quantidade: number,
   unidade: string,
   tamanhoPacote?: number,
   unidadePacote?: string,
@@ -204,13 +211,9 @@ function mediaUnidade(
   const pacote = unidadeBase(unidadePacote ?? "");
   const escala =
     desejada && pacote && desejada.tipo === pacote.tipo ? desejada.fator / pacote.fator : undefined;
-  if (!escala || !tamanhoPacote || tamanhoPacote <= 0)
-    return desejada?.tipo === "contagem" || normalizar(unidade) === "pacote"
-      ? precoOferta * quantidade
-      : precoOferta;
-  const tamanhoBase =
-    tamanhoPacote * (unidadesNoPacote && unidadesNoPacote > 1 ? unidadesNoPacote : 1);
-  return (precoOferta / tamanhoBase) * (quantidade * escala);
+  if (!escala || !tamanhoPacote || tamanhoPacote <= 0) return precoOferta;
+  const tamanhoBase = tamanhoPacote * (unidadesNoPacote && unidadesNoPacote > 1 ? unidadesNoPacote : 1);
+  return (precoOferta / tamanhoBase) * desejada!.fator;
 }
 
 function ofertaDaLoja(
@@ -235,7 +238,7 @@ function ofertaDaLoja(
       ),
     );
   } else if (coordenadas) {
-    const cidade = normalizar(local?.split(",")[0] ?? "");
+    const cidade = extrairCidade(local);
     disponiveis = disponiveis.filter((oferta) => {
       const ponto = coordenadasDaLoja(oferta.store_coords);
       // Use distância quando a fonte fornece coordenadas; quando não fornece,
@@ -244,7 +247,7 @@ function ofertaDaLoja(
       return cidade.length > 2 && normalizar(oferta.city_name ?? "").includes(cidade);
     });
   } else if (local?.trim()) {
-    const cidade = normalizar(local.split(",")[0] ?? "");
+    const cidade = extrairCidade(local);
     if (cidade.length > 2) {
       disponiveis = disponiveis.filter((oferta) =>
         normalizar(oferta.city_name ?? "").includes(cidade),
@@ -384,7 +387,6 @@ function valorDoRegistroOpenPrices(
 
   return mediaUnidade(
     valor,
-    item.quantidade,
     item.unidade,
     produto?.product_quantity ?? undefined,
     produto?.product_quantity_unit ?? undefined,
@@ -429,7 +431,7 @@ async function consultarOpenPrices(
     // A API pode retornar registros fora do raio solicitado em alguns cenários.
     // Revalida distância e exige uma localização identificável para preço regional.
     if (filtros?.coordenadas && !filtros?.mercado?.trim()) {
-      const cidade = normalizar(filtros.local?.split(",")[0] ?? "");
+      const cidade = extrairCidade(filtros.local);
       registros = registros.filter((registro) => {
         const ponto = coordenadasOpenPrices(registro.location);
         const nomeMercado = registro.location?.osm_name?.trim() || registro.location?.osm_brand?.trim();
@@ -456,7 +458,7 @@ async function consultarOpenPrices(
         ),
       );
     } else if (!filtros?.coordenadas && filtros?.local?.trim()) {
-      const cidade = normalizar(filtros.local.split(",")[0] ?? "");
+      const cidade = extrairCidade(filtros.local);
       if (cidade.length > 2) {
         registros = registros.filter((registro) =>
           normalizar(registro.location?.osm_address_city ?? "").includes(cidade),
@@ -542,7 +544,7 @@ export async function consultarPrecosObservados(
       try {
         const termosAlternativos = tokens(item.nome)
           .slice(1)
-          .filter((token) => !/^\\d/.test(token));
+          .filter((token) => !/^\d/.test(token));
         const consultas = [item.nome];
         if (termosAlternativos.length >= 2) consultas.push(termosAlternativos.join(" "));
 
@@ -625,7 +627,6 @@ export async function consultarPrecosObservados(
           const precoPacote = media(valores);
           const preco = mediaUnidade(
             precoPacote,
-            item.quantidade,
             item.unidade,
             dadosMelhor.product?.normalized_value,
             dadosMelhor.product?.normalized_unit,
