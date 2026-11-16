@@ -6,6 +6,7 @@ type Coordinates = { lat: number; lng: number };
 type SearchProduct = {
   ean?: string;
   product_name?: string;
+  store_count?: number;
 };
 
 type ProductResponse = {
@@ -90,7 +91,8 @@ function coordenadasDaLoja(value?: string): Coordinates | undefined {
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined;
 }
 
-const RAIO_MAXIMO_FILIAL_KM = 0.35;
+// Geocodificadores podem marcar entradas diferentes do mesmo estabelecimento.
+const RAIO_MAXIMO_FILIAL_KM = 0.75;
 
 function correspondeFilialSelecionada(
   nomeSelecionado: string,
@@ -104,12 +106,16 @@ function correspondeFilialSelecionada(
   // Quando as duas lojas têm coordenadas, a distância é o critério principal.
   // Exige também algum nome em comum para evitar cruzar lojas diferentes próximas.
   if (coordenadasSelecionadas && coordenadasEncontradas) {
-    const tokensEncontrados = new Set(tokens(nomeEncontrado));
-    const temIdentificadorComum = tokens(nomeSelecionado).some((token) =>
-      tokensEncontrados.has(token),
-    );
+    const tokensSelecionados = tokens(nomeSelecionado);
+    const tokensEncontrados = tokens(nomeEncontrado);
+    const comuns = tokensSelecionados.filter((token) => tokensEncontrados.includes(token));
+    const nomesSuficientementeIdentificados =
+      tokensSelecionados.length >= 2 && tokensEncontrados.length >= 2
+        ? comuns.length >= 2
+        : normalizar(nomeSelecionado) === normalizar(nomeEncontrado);
+
     return (
-      temIdentificadorComum &&
+      nomesSuficientementeIdentificados &&
       distanciaKm(coordenadasSelecionadas, coordenadasEncontradas) <= RAIO_MAXIMO_FILIAL_KM
     );
   }
@@ -139,7 +145,14 @@ function media(valores: number[]) {
   return valores.reduce((soma, valor) => soma + valor, 0) / valores.length;
 }
 
+const cacheJson = new Map<string, { expiraEm: number; dados: unknown }>();
+const CACHE_JSON_TTL_MS = 10 * 60 * 1000;
+
 async function buscarJson<T>(url: string): Promise<T> {
+  const agora = Date.now();
+  const armazenado = cacheJson.get(url);
+  if (armazenado && armazenado.expiraEm > agora) return armazenado.dados as T;
+
   const resposta = await fetch(url, {
     headers: {
       "User-Agent": "SuaGeladeiraInteligente/1.0 (+https://suageladeirainteligente.com.br)",
@@ -147,7 +160,15 @@ async function buscarJson<T>(url: string): Promise<T> {
     signal: AbortSignal.timeout(10_000),
   });
   if (!resposta.ok) throw new Error(`Fonte de preços indisponível (${resposta.status}).`);
-  return (await resposta.json()) as T;
+
+  const dados = (await resposta.json()) as T;
+  if (cacheJson.size > 500) {
+    for (const [chave, valor] of cacheJson) {
+      if (valor.expiraEm <= agora) cacheJson.delete(chave);
+    }
+  }
+  cacheJson.set(url, { expiraEm: agora + CACHE_JSON_TTL_MS, dados });
+  return dados;
 }
 
 async function resolverLocalidade(local?: string) {
@@ -474,13 +495,16 @@ export async function consultarPrecosObservados(
     itens.map(async (item) => {
       let produtoMelhor: (SearchProduct & { ean: string; product_name: string; score: number }) | undefined;
       let dadosMelhor: ProductResponse | undefined;
+      let ofertasMelhor: NonNullable<ProductResponse["prices"]> = [];
 
-      // PreçoMelhor continua ativo como primeira fonte já existente.
+      // PreçoMelhor é gratuito e permite consultar os preços por filial.
+      // Avalia até três variantes compatíveis para não ficar preso ao primeiro
+      // cadastro, que pode não ter preço na loja selecionada.
       try {
         const busca = await buscarJson<{ items?: SearchProduct[] }>(
           `${BASE_URL}/search?q=${encodeURIComponent(item.nome)}`,
         );
-        produtoMelhor = (busca.items ?? [])
+        const candidatos = (busca.items ?? [])
           .filter(
             (candidate): candidate is SearchProduct & { ean: string; product_name: string } =>
               !!candidate.ean && !!candidate.product_name,
@@ -489,27 +513,48 @@ export async function consultarPrecosObservados(
             ...candidate,
             score: scoreProductName(item.nome, candidate.product_name),
           }))
-          .sort((a, b) => b.score - a.score)[0];
-        if (produtoMelhor && produtoMelhor.score === 1) {
-          dadosMelhor = await buscarJson<ProductResponse>(
-            `${BASE_URL}/product/${encodeURIComponent(produtoMelhor.ean)}`,
+          .filter((candidate) => candidate.score === 1)
+          .sort((a, b) => (b.store_count ?? 0) - (a.store_count ?? 0))
+          .slice(0, filtros.mercado?.trim() || filtros.coordenadas || localResolvido ? 3 : 1);
+
+        for (const candidato of candidatos) {
+          const dados = await buscarJson<ProductResponse>(
+            `${BASE_URL}/product/${encodeURIComponent(candidato.ean)}`,
           );
-        } else {
-          produtoMelhor = undefined;
+          const ofertas = ofertaDaLoja(
+            dados.prices ?? [],
+            filtros.mercado,
+            filtros.coordenadas,
+            localResolvido,
+          );
+
+          if (!produtoMelhor) {
+            produtoMelhor = candidato;
+            dadosMelhor = dados;
+          }
+
+          if (ofertas.length > 0) {
+            produtoMelhor = candidato;
+            dadosMelhor = dados;
+            ofertasMelhor = ofertas;
+            break;
+          }
         }
       } catch {
         // Open Prices is still queried even if PreçoMelhor is temporarily unavailable.
       }
 
-      // Prioriza ofertas do PreçoMelhor que correspondem à loja/filial escolhida.
-      // Assim, um registro nacional do Open Prices não encobre um preço local real.
+      // Prioriza a variante que realmente possui oferta compatível com a filial.
+      // Assim, não exibe o preço de outra unidade da rede como se fosse da escolhida.
       if (produtoMelhor && dadosMelhor) {
-        const ofertas = ofertaDaLoja(
-          dadosMelhor.prices ?? [],
-          filtros.mercado,
-          filtros.coordenadas,
-          localResolvido,
-        );
+        const ofertas = ofertasMelhor.length
+          ? ofertasMelhor
+          : ofertaDaLoja(
+              dadosMelhor.prices ?? [],
+              filtros.mercado,
+              filtros.coordenadas,
+              localResolvido,
+            );
         const valores = ofertas
           .map((oferta) => Number(oferta.promo_price ?? oferta.price))
           .filter((preco) => Number.isFinite(preco) && preco > 0);
