@@ -17,6 +17,7 @@ const TERMOS_DE_OUTRA_CATEGORIA = new Set([
   "passa", "desidratado", "desidratada", "enlatado", "enlatada", "empanado", "empanada",
   "nectar", "pure", "puree", "smoothie", "milkshake", "salada", "po",
   // Outro alimento principal no nome costuma indicar mistura/sabor, não o item simples.
+  "integral", "parboilizado", "parbolizado", "carnaroli", "arborio", "arboreo", "basmati", "jasmim",
   "morango", "strawberry", "maca", "apple", "laranja", "orange", "uva", "grape",
   "manga", "mango", "abacaxi", "pineapple", "pessego", "peach", "pera", "pear",
   "framboesa", "raspberry", "mirtilo", "blueberry", "cereja", "cherry", "kiwi",
