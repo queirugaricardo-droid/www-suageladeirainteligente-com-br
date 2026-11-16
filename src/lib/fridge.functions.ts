@@ -140,56 +140,26 @@ export const estimarPrecos = createServerFn({ method: "POST" })
           )
           .min(1)
           .max(20),
-        local: z.string().max(200).optional(),
-        mercado: z.string().max(200).optional(),
-        lojas: z
-          .array(
-            z
-              .object({
-                nome: z.string().trim().min(1).max(200),
-                lat: z.number().min(-90).max(90).optional(),
-                lng: z.number().min(-180).max(180).optional(),
-              })
-              .refine((loja) => (loja.lat === undefined) === (loja.lng === undefined), {
-                message: "Informe latitude e longitude juntas para cada mercado.",
-              }),
-          )
-          .max(20)
-          .optional(),
-        lat: z.number().min(-90).max(90).optional(),
-        lng: z.number().min(-180).max(180).optional(),
-      })
-      .refine((data) => (data.lat === undefined) === (data.lng === undefined), {
-        message: "Informe latitude e longitude juntas.",
       })
       .parse(input),
   )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const { consultarPrecosObservados, consultarPrecosEmMercados } =
-        await import("./market-prices.server");
-      const filtros = {
-        ...(data.mercado ? { mercado: data.mercado } : {}),
-        ...(data.local ? { local: data.local } : {}),
-        ...(data.lat !== undefined && data.lng !== undefined
-          ? { coordenadas: { lat: data.lat, lng: data.lng } }
-          : {}),
-      };
-      const resultado = data.mercado
-        ? await consultarPrecosObservados(data.itens, filtros)
-        : data.lojas?.length || data.lat !== undefined || data.local?.trim()
-          ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas ?? [])
-          : await consultarPrecosObservados(data.itens, filtros);
+      const { consultarPrecosObservados } = await import("./market-prices.server");
+      const resultado = await consultarPrecosObservados(data.itens);
+      return { ok: true as const, ...resultado };
+    } catch (erro) {
+      const mensagem = erro instanceof Error
+        ? erro.message
+        : "Não foi possível consultar o PreçoMelhor.";
       return {
-        ok: true as const,
-        ...resultado,
-        local: data.lat !== undefined ? (data.local?.trim() ?? "") : "",
+        ok: false as const,
+        erro: mensagem,
+        precos: [],
+        observacao: "",
+        dataColeta: "",
       };
-    } catch (e) {
-      const erro =
-        e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
-      return { ok: false as const, erro, precos: [], observacao: "", dataColeta: "", local: "" };
     }
   });
 
