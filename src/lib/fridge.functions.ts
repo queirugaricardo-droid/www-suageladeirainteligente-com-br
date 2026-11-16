@@ -48,8 +48,8 @@ export const analisarFoto = createServerFn({ method: "POST" })
                   "Conte SOMENTE unidades que você realmente enxerga; não deduza unidades escondidas pelo tamanho da embalagem ou bandeja. Se houver chance de unidades encobertas, informe só as visíveis e use confiança abaixo de 0.9.",
                   "Antes de responder, revise mentalmente a lista final: confirme que cada item está realmente visível e que a contagem confere com a imagem.",
                   "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
-                   'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
-                   'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
+                  'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
+                  'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
                   "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
                 ].join(" "),
               },
@@ -75,7 +75,8 @@ export const analisarFoto = createServerFn({ method: "POST" })
         .map((i) => {
           const unidade = typeof i.unidade === "string" ? i.unidade : "un";
           const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
-          const estimado = i.estimado === true || pesoOuVolume;          const confiancaBase =
+          const estimado = i.estimado === true || pesoOuVolume;
+          const confiancaBase =
             typeof i.confianca === "number" && Number.isFinite(i.confianca)
               ? Math.max(0, Math.min(i.confianca, 1))
               : undefined;
@@ -154,7 +155,8 @@ export const estimarPrecos = createServerFn({ method: "POST" })
         await import("./market-prices.server");
       const filtros = {
         ...(data.mercado ? { mercado: data.mercado } : {}),
-        ...(data.local ? { local: data.local } : {}),        ...(data.lat !== undefined && data.lng !== undefined
+        ...(data.local ? { local: data.local } : {}),
+        ...(data.lat !== undefined && data.lng !== undefined
           ? { coordenadas: { lat: data.lat, lng: data.lng } }
           : {}),
       };
@@ -233,7 +235,8 @@ export const buscarMercados = createServerFn({ method: "POST" })
             name?: string;
             formatted?: string;
             address_line1?: string;
-            address_line2?: string;            street?: string;
+            address_line2?: string;
+            street?: string;
             housenumber?: string;
             suburb?: string;
             district?: string;
