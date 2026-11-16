@@ -167,24 +167,14 @@ export const estimarPrecos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const { consultarPrecosObservados, consultarPrecosEmMercados } =
-        await import("./market-prices.server");
-      const filtros = {
-        ...(data.mercado ? { mercado: data.mercado } : {}),
+      const { consultarMediaRegional } = await import("./market-prices.server");
+      const resultado = await consultarMediaRegional(data.itens, {
         ...(data.local ? { local: data.local } : {}),
-        ...(data.lat !== undefined && data.lng !== undefined
-          ? { coordenadas: { lat: data.lat, lng: data.lng } }
-          : {}),
-      };
-      const resultado = data.mercado
-        ? await consultarPrecosObservados(data.itens, filtros)
-        : data.lojas?.length || data.lat !== undefined || data.local?.trim()
-          ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas ?? [])
-          : await consultarPrecosObservados(data.itens, filtros);
+      });
       return {
         ok: true as const,
         ...resultado,
-        local: data.lat !== undefined ? (data.local?.trim() ?? "") : "",
+        local: resultado.local || data.local?.trim() || "",
       };
     } catch (e) {
       const erro =
@@ -193,254 +183,60 @@ export const estimarPrecos = createServerFn({ method: "POST" })
     }
   });
 
-function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(h)) * 10) / 10;
-}
-
-type OpenStreetMapPlace = {
-  name?: string;
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  type?: string;
-  class?: string;
-  address?: {
-    road?: string;
-    house_number?: string;
-    suburb?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    state?: string;
-  };
-};
-
-/**
- * Busca supermercados na base pública do OpenStreetMap, sem exigir chave paga.
- * A caixa de busca é limitada à região e a distância exata é recalculada no servidor.
- */
-async function buscarMercadosOpenStreetMap(lat: number, lng: number) {
-  const parametros = new URLSearchParams({
-    q: "supermarket",
-    viewbox: `${lng - 0.06},${lat + 0.05},${lng + 0.06},${lat - 0.05}`,
-    bounded: "1",
-    format: "jsonv2",
-    addressdetails: "1",
-    limit: "40",
-  });
-
-  try {
-    const resposta = await fetch(
-      `https://nominatim.openstreetmap.org/search?${parametros.toString()}`,
-      {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "SuaGeladeiraInteligente/1.0 (https://suageladeirainteligente.com.br)",
-        },
-        signal: AbortSignal.timeout(12_000),
-      },
-    );
-
-    if (!resposta.ok) {
-      throw new Error(`OpenStreetMap respondeu com status ${resposta.status}.`);
-    }
-
-    const json = (await resposta.json()) as OpenStreetMapPlace[];
-    const vistos = new Set<string>();
-    const lojas = json
-      .map((local) => {
-        const nome = local.name?.trim();
-        // Somente mercados e sacolões; nunca postos ou lojas de conveniência.
-        if (local.class !== "shop" || !["supermarket", "greengrocer", "grocery"].includes(local.type ?? "")) return null;
-        const latLoja = Number(local.lat);
-        const lngLoja = Number(local.lon);
-        if (!nome || !Number.isFinite(latLoja) || !Number.isFinite(lngLoja)) return null;
-
-        const distancia = distanciaKm({ lat, lng }, { lat: latLoja, lng: lngLoja });
-        if (distancia > 5) return null;
-
-        const endereco = [
-          [local.address?.road, local.address?.house_number].filter(Boolean).join(", "),
-          local.address?.suburb,
-          local.address?.city ?? local.address?.town ?? local.address?.village,
-        ]
-          .filter(Boolean)
-          .join(" - ") || local.display_name || "Endereço não informado";
-        const chave = `${nome.toLocaleLowerCase("pt-BR")}|${latLoja.toFixed(4)}|${lngLoja.toFixed(4)}`;
-        if (vistos.has(chave)) return null;
-        vistos.add(chave);
-
-        return {
-          nome,
-          endereco,
-          lat: latLoja,
-          lng: lngLoja,
-          distanciaKm: Math.round(distancia * 10) / 10,
-          cidade: local.address?.city ?? local.address?.town ?? local.address?.village ?? "",
-          bairro: local.address?.suburb ?? "",
-          estado: local.address?.state ?? "",
-        };
-      })
-      .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
-      .sort((a, b) => a.distanciaKm - b.distanciaKm)
-      .slice(0, 8);
-
-    const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
-    const local = lojaComLocal
-      ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
-      : "";
-
-    return {
-      ok: lojas.length > 0,
-      conectado: true,
-      erro:
-        lojas.length > 0
-          ? ""
-          : "O OpenStreetMap não encontrou supermercados cadastrados em até 5 km.",
-      lojas,
-      local,
-    };
-  } catch (erro) {
-    const mensagem = erro instanceof Error ? erro.message : "Falha ao consultar o OpenStreetMap.";
-    console.error("Busca OpenStreetMap indisponível:", mensagem);
-    return {
-      ok: false,
-      conectado: false,
-      erro: "Não foi possível localizar supermercados pela base aberta agora. Tente novamente em instantes.",
-      lojas: [],
-      local: "",
-    };
-  }
-}
-
 export const buscarMercados = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    // Geoapify Places API: pesquisa somente supermercados num raio de 5 km.
-    // A chave fica exclusivamente no servidor (Vercel).
-    const apiKey = process.env["GEOAPIFY_API_KEY"]?.trim();
-    if (!apiKey) {
-      return buscarMercadosOpenStreetMap(data.lat, data.lng);
-    }
-
     try {
-      const parametros = new URLSearchParams({
-        categories: "commercial.supermarket",
-        filter: `circle:${data.lng},${data.lat},5000`,
-        bias: `proximity:${data.lng},${data.lat}`,
-        limit: "100",
-        lang: "pt",
-        apiKey,
+      const url = new URL("https://nominatim.openstreetmap.org/reverse");
+      url.searchParams.set("lat", String(data.lat));
+      url.searchParams.set("lon", String(data.lng));
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("zoom", "10");
+      const resposta = await fetch(url, {
+        headers: {
+          "User-Agent": "SuaGeladeiraInteligente/1.0 (https://suageladeirainteligente.com.br)",
+          "Accept-Language": "pt-BR",
+        },
+        signal: AbortSignal.timeout(10_000),
       });
-      const resposta = await fetch(`https://api.geoapify.com/v2/places?${parametros.toString()}`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(12_000),
-      });
-
-      if (!resposta.ok) {
-        console.error("Geoapify Places respondeu com status " + resposta.status + ".");
-        const erro =
-          resposta.status === 401 || resposta.status === 403
-            ? "A chave da busca de mercados é inválida ou não está autorizada. Confira GEOAPIFY_API_KEY no Vercel."
-            : resposta.status === 429
-              ? "O limite gratuito diário da busca de mercados foi atingido. Tente novamente amanhã."
-              : resposta.status >= 500
-                ? "O serviço de localização está temporariamente indisponível. Tente novamente em instantes."
-                : "Não foi possível consultar os mercados (erro " + resposta.status + ").";
-        return { ok: false as const, conectado: true, erro, lojas: [], local: "" };
-      }
-
+      if (!resposta.ok) throw new Error("O serviço gratuito de localização está temporariamente indisponível.");
       const json = (await resposta.json()) as {
-        features?: Array<{
-          properties?: {
-            name?: string;
-            formatted?: string;
-            address_line1?: string;
-            address_line2?: string;
-            street?: string;
-            housenumber?: string;
-            suburb?: string;
-            district?: string;
-            city?: string;
-            state?: string;
-            lat?: number;
-            lon?: number;
-            distance?: number;
-          };
-        }>;
+        address?: {
+          city?: string;
+          town?: string;
+          village?: string;
+          municipality?: string;
+          county?: string;
+          state?: string;
+          "ISO3166-2-lvl4"?: string;
+        };
       };
-
-      const vistos = new Set<string>();
-      const lojas = (json.features ?? [])
-        .map((feature) => {
-          const p = feature.properties ?? {};
-          const nome = p.name?.trim();
-          if (!nome || typeof p.lat !== "number" || typeof p.lon !== "number") return null;
-          const endereco =
-            p.formatted?.trim() ||
-            [p.address_line1, p.address_line2].filter(Boolean).join(", ") ||
-            [p.street, p.housenumber].filter(Boolean).join(", ") ||
-            "Endereço não informado";
-          const chave = nome.toLocaleLowerCase("pt-BR") + "|" + endereco.toLocaleLowerCase("pt-BR");
-          if (vistos.has(chave)) return null;
-          vistos.add(chave);
-          return {
-            nome,
-            endereco,
-            // Preserve the exact Geoapify branch coordinates so price lookups
-            // are centered on the selected supermarket, not the user's GPS point.
-            lat: p.lat,
-            lng: p.lon,
-            distanciaKm:
-              typeof p.distance === "number"
-                ? Math.round((p.distance / 1000) * 10) / 10
-                : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
-            cidade: p.city ?? "",
-            bairro: p.suburb ?? p.district ?? "",
-            estado: p.state ?? "",
-          };
-        })
-        .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
-        .sort((a, b) => a.distanciaKm - b.distanciaKm)
-        .slice(0, 8);
-
-      const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
-      const local = lojaComLocal
-        ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
-        : "";
-
-      return {
-        ok: true as const,
-        conectado: true,
-        lojas: lojas.map(({ nome, endereco, distanciaKm, lat, lng }) => ({
-          nome,
-          endereco,
-          distanciaKm,
-          lat,
-          lng,
-        })),
-        local,
-        erro: "",
-      };
+      const endereco = json.address ?? {};
+      const cidade =
+        endereco.city ??
+        endereco.town ??
+        endereco.village ??
+        endereco.municipality ??
+        endereco.county;
+      const uf = endereco["ISO3166-2-lvl4"]?.split("-").at(-1);
+      const local = [cidade, uf ?? endereco.state].filter(Boolean).join(", ");
+      if (!cidade) {
+        return {
+          ok: false as const,
+          conectado: true,
+          erro: "Não consegui identificar sua cidade pelo GPS. Digite a cidade ou o CEP.",
+          lojas: [],
+          local: "",
+        };
+      }
+      return { ok: true as const, conectado: true, erro: "", lojas: [], local };
     } catch (e) {
-      const mensagem = e instanceof Error ? e.message : "";
-      console.error("Falha ao consultar Geoapify Places.", mensagem);
       return {
         ok: false as const,
-        conectado: true,
-        erro:
-          mensagem.includes("Timeout") || mensagem.includes("aborted")
-            ? "A busca de mercados demorou demais. Tente novamente."
-            : "Não foi possível consultar os mercados próximos agora.",
+        conectado: false,
+        erro: e instanceof Error ? e.message : "Não consegui identificar sua região.",
         lojas: [],
         local: "",
       };
