@@ -383,7 +383,7 @@ function valorDoRegistroOpenPrices(
   if (registro.price_per === "LITER" && desejada?.tipo === "volume")
     return valor * (desejada.fator / 1000);
   if (registro.price_per === "UNIT" || desejada?.tipo === "contagem")
-    return valor * item.quantidade;
+    return valor;
 
   return mediaUnidade(
     valor,
