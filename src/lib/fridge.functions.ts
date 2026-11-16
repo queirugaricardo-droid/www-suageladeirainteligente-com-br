@@ -176,9 +176,11 @@ export const estimarPrecos = createServerFn({ method: "POST" })
           ? { coordenadas: { lat: data.lat, lng: data.lng } }
           : {}),
       };
-      const resultado = data.lojas?.length
-        ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas)
-        : await consultarPrecosObservados(data.itens, filtros);
+      const resultado = data.mercado
+        ? await consultarPrecosObservados(data.itens, filtros)
+        : data.lojas?.length || data.lat !== undefined || data.local?.trim()
+          ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas ?? [])
+          : await consultarPrecosObservados(data.itens, filtros);
       return {
         ok: true as const,
         ...resultado,
