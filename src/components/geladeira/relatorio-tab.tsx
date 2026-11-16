@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Copy,
@@ -60,7 +60,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [localManual, setLocalManual] = useState("");
   const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
   const [lojas, setLojas] = useState<Loja[]>([]);
-  const [mercadoSelecionado, setMercadoSelecionado] = useState<Loja | null>(null);
+
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
@@ -209,7 +209,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           }
           setPrecos([]);
           setObservacao("");
-          setMercadoSelecionado(null);
+
         } finally {
           setCarregandoLocal(false);
         }
@@ -228,6 +228,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     mercado?: string,
     ponto: { lat: number; lng: number } | null = coordenadas,
     localidade = local,
+    mercadosParaConsultar: Loja[] = lojas,
   ) {
     if (faltantes.length === 0) return;
     if (faltantes.length > 20) {
@@ -247,6 +248,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           })),
           local: ponto ? localidade : localManual.trim() || local || "",
           mercado: mercado || "",
+          lojas: mercado
+            ? []
+            : mercadosParaConsultar.map((loja) => ({
+                nome: loja.nome,
+                ...(loja.lat !== undefined && loja.lng !== undefined
+                  ? { lat: loja.lat, lng: loja.lng }
+                  : {}),
+              })),
           lat: ponto?.lat,
           lng: ponto?.lng,
         },
@@ -259,7 +268,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
       if (resposta.precos.some((preco) => preco.precoUnitario > 0)) {
-        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Preços observados consultados.");
+        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Média dos preços dos mercados próximos calculada.");
       } else {
         toast.error("Não encontrei preços observados compatíveis com os itens e a região.");
       }
@@ -270,6 +279,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     }
   }
 
+
+  useEffect(() => {
+    if (lojas.length > 0 && faltantes.length > 0) {
+      void calcularPrecos("", coordenadas, local, lojas);
+    }
+    // A consulta automática deve ocorrer quando a lista de mercados for atualizada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojas]);
 
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
@@ -542,7 +559,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   <Loader2 className="size-4 animate-spin" /> Calculando...
                 </>
               ) : (
-                "Estimar preços"
+                "Atualizar preços"
               )}
             </Button>
           </div>
@@ -562,7 +579,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
           {lojas.length > 0 && (
             <>
-            <p className="text-sm font-medium">Escolha um mercado para consultar os preços dos produtos:</p>
+            <p className="text-sm font-medium">Mercados encontrados — todos serão consultados automaticamente:</p>
             <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               {lojas.map((loja) => (
                 <div
@@ -578,34 +595,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                       {loja.nota !== undefined && ` · nota ${loja.nota}`}
                     </p>
                   </div>
-                  <Button
-                    className="shrink-0 px-2"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setMercadoSelecionado(loja);
-                      calcularPrecos(
-                        loja.nome,
-                        loja.lat !== undefined && loja.lng !== undefined
-                          ? { lat: loja.lat, lng: loja.lng }
-                          : null,
-                      );
-                    }}
-                    disabled={carregandoPrecos}
-                  >
-                    Ver preços
-                  </Button>
+                  <Badge variant="secondary" className="shrink-0">Incluído</Badge>
                 </div>
               ))}
             </div>
             </>
           )}
 
-          {mercadoSelecionado && (
-            <p className="text-sm text-muted-foreground">
-              Preços da lista para: <span className="font-semibold text-foreground">{mercadoSelecionado.nome}</span>
-            </p>
-          )}
+
           {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
         </CardContent>
       </Card>

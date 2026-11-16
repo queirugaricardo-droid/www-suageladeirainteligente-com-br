@@ -1,3 +1,4 @@
+import { calcularMediaPrecos } from "./market-price-average";
 import { scoreProductName } from "./product-matching";
 type InputItem = { nome: string; quantidade: number; unidade: string };
 type Coordinates = { lat: number; lng: number };
@@ -582,4 +583,85 @@ export async function consultarPrecosObservados(
     .join(" ");
 
   return { precos: resultados, observacao, dataColeta: dataMaisRecente ?? "" };
+}
+
+type LojaConsulta = { nome: string; lat?: number | undefined; lng?: number | undefined };
+
+/** Consulta cada filial encontrada e calcula a média apenas dos preços observados compatíveis. */
+export async function consultarPrecosEmMercados(
+  itens: InputItem[],
+  filtros: { local?: string; coordenadas?: Coordinates },
+  lojas: LojaConsulta[],
+) {
+  const lojasUnicas = lojas
+    .filter((loja) => loja.nome.trim())
+    .filter(
+      (loja, index, lista) =>
+        lista.findIndex(
+          (outra) =>
+            normalizar(outra.nome) === normalizar(loja.nome) &&
+            (outra.lat === undefined ||
+              loja.lat === undefined ||
+              distanciaKm(
+                { lat: outra.lat, lng: outra.lng! },
+                { lat: loja.lat, lng: loja.lng! },
+              ) < 0.35),
+        ) === index,
+    );
+
+  const consultas: Array<{
+    loja: LojaConsulta;
+    precos: Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"];
+  }> = [];
+  // Limita a concorrência para não disparar dezenas de consultas simultâneas nas fontes gratuitas.
+  let proxima = 0;
+  const trabalhadores = Array.from({ length: Math.min(3, lojasUnicas.length) }, async () => {
+    while (proxima < lojasUnicas.length) {
+      const indice = proxima++;
+      const loja = lojasUnicas[indice];
+      try {
+        const { coordenadas: _coordenadasDaPessoa, ...filtrosSemCoordenadas } = filtros;
+        const resultado = await consultarPrecosObservados(itens, {
+          ...filtrosSemCoordenadas,
+          mercado: loja.nome,
+          ...(loja.lat !== undefined && loja.lng !== undefined
+            ? { coordenadas: { lat: loja.lat, lng: loja.lng } }
+            : {}),
+        });
+        consultas[indice] = { loja, precos: resultado.precos };
+      } catch {
+        consultas[indice] = { loja, precos: [] };
+      }
+    }
+  });
+  await Promise.all(trabalhadores);
+
+  const precos = itens.map((item) => {
+    const encontrados = consultas.flatMap(({ loja, precos: lista }) => {
+      const preco = lista.find(
+        (registro) => registro.nome === item.nome && registro.precoUnitario > 0,
+      );
+      return preco ? [{ ...preco, loja: loja.nome }] : [];
+    });
+    const valores = encontrados.map((registro) => registro.precoUnitario);
+    const media = calcularMediaPrecos(valores);
+    const datas = encontrados
+      .map((registro) => registro.atualizadoEm ?? "")
+      .filter(Boolean)
+      .sort();
+    return {
+      nome: item.nome,
+      precoUnitario: media,
+      produto: encontrados[0]?.produto ?? "",
+      mercado: encontrados.length ? `Média de ${encontrados.length} mercado(s)` : "",
+      atualizadoEm: datas.at(-1) ?? "",
+      mercadosConsultados: encontrados.map((registro) => registro.loja),
+      quantidadeMercados: encontrados.length,
+    };
+  });
+
+  const totalComPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
+  const maiorData = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
+  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). A média de cada produto considera somente as filiais que forneceram preço observado compatível; produtos sem registro ficam sem preço. ${totalComPreco} de ${itens.length} produto(s) tiveram ao menos um preço. Os registros podem não cobrir todos os mercados da região.`;
+  return { precos, observacao, dataColeta: maiorData };
 }

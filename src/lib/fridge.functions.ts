@@ -128,6 +128,20 @@ export const estimarPrecos = createServerFn({ method: "POST" })
           .max(20),
         local: z.string().max(200).optional(),
         mercado: z.string().max(200).optional(),
+        lojas: z
+          .array(
+            z
+              .object({
+                nome: z.string().trim().min(1).max(200),
+                lat: z.number().min(-90).max(90).optional(),
+                lng: z.number().min(-180).max(180).optional(),
+              })
+              .refine((loja) => (loja.lat === undefined) === (loja.lng === undefined), {
+                message: "Informe latitude e longitude juntas para cada mercado.",
+              }),
+          )
+          .max(20)
+          .optional(),
         lat: z.number().min(-90).max(90).optional(),
         lng: z.number().min(-180).max(180).optional(),
       })
@@ -139,12 +153,18 @@ export const estimarPrecos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const { consultarPrecosObservados } = await import("./market-prices.server");
-      const resultado = await consultarPrecosObservados(data.itens, {
+      const { consultarPrecosObservados, consultarPrecosEmMercados } =
+        await import("./market-prices.server");
+      const filtros = {
         ...(data.mercado ? { mercado: data.mercado } : {}),
         ...(data.local ? { local: data.local } : {}),
-        ...(data.lat !== undefined && data.lng !== undefined ? { coordenadas: { lat: data.lat, lng: data.lng } } : {}),
-      });
+        ...(data.lat !== undefined && data.lng !== undefined
+          ? { coordenadas: { lat: data.lat, lng: data.lng } }
+          : {}),
+      };
+      const resultado = data.lojas?.length
+        ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas)
+        : await consultarPrecosObservados(data.itens, filtros);
       return {
         ok: true as const,
         ...resultado,
