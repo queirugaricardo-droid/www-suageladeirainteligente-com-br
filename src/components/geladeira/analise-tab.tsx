@@ -24,22 +24,45 @@ function comprimir(arquivo: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const leitor = new FileReader();
     leitor.onerror = () => reject(new Error("Não consegui ler a imagem."));
+
     leitor.onload = () => {
       const img = new Image();
-      img.onerror = () => reject(new Error("Imagem inválida."));
+      img.onerror = () =>
+        reject(new Error("Não consegui abrir esta imagem. Escolha uma foto em JPG, PNG ou HEIC."));
+
       img.onload = () => {
-        const maxLado = 2048;
-        const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
+        const maxLado = 1800;
+        let escala = Math.min(1, maxLado / Math.max(img.width, img.height));
         const canvas = document.createElement("canvas");
-        canvas.width = Math.round(img.width * escala);
-        canvas.height = Math.round(img.height * escala);
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Não consegui processar a imagem."));
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.9));
+
+        // Mantém boa resolução para reconhecer alimentos e limita o envio
+        // para evitar falhas de requisição em celulares e redes móveis.
+        let jpeg = "";
+        for (let tentativa = 0; tentativa < 5; tentativa += 1) {
+          canvas.width = Math.max(1, Math.round(img.width * escala));
+          canvas.height = Math.max(1, Math.round(img.height * escala));
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          const qualidade = [0.84, 0.78, 0.72, 0.68, 0.64][tentativa];
+          jpeg = canvas.toDataURL("image/jpeg", qualidade);
+
+          // Alvo de 1,35 MB por foto para permitir o envio de duas imagens.
+          if (jpeg.length <= 1_850_000) break;
+          escala *= 0.85;
+        }
+
+        if (!jpeg || jpeg.length > 1_850_000) {
+          return reject(new Error("A foto é muito grande para enviar. Escolha uma imagem menor."));
+        }
+        resolve(jpeg);
       };
+
       img.src = String(leitor.result);
     };
+
     leitor.readAsDataURL(arquivo);
   });
 }
