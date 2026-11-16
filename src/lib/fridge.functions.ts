@@ -5,8 +5,6 @@ import { imagensAnaliseSchema } from "./plano";
 import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
-type ClienteSb = { from: (t: "analises_foto") => any; rpc: (...a: any[]) => any };
-
 function extrairJson(texto: string) {
   const limpo = texto.replace(/```json/gi, "").replace(/```/g, "").trim();
   const inicio = limpo.indexOf("{");
@@ -28,7 +26,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     try {
-      const sb = context.supabase as unknown as ClienteSb;
+      const sb = context.supabase;
       const messages = [
           {
             role: "user" as const,
@@ -77,8 +75,7 @@ export const analisarFoto = createServerFn({ method: "POST" })
         .map((i) => {
           const unidade = typeof i.unidade === "string" ? i.unidade : "un";
           const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
-          const estimado = i.estimado === true || pesoOuVolume;
-          const confiancaBase =
+          const estimado = i.estimado === true || pesoOuVolume;          const confiancaBase =
             typeof i.confianca === "number" && Number.isFinite(i.confianca)
               ? Math.max(0, Math.min(i.confianca, 1))
               : undefined;
@@ -157,8 +154,7 @@ export const estimarPrecos = createServerFn({ method: "POST" })
         await import("./market-prices.server");
       const filtros = {
         ...(data.mercado ? { mercado: data.mercado } : {}),
-        ...(data.local ? { local: data.local } : {}),
-        ...(data.lat !== undefined && data.lng !== undefined
+        ...(data.local ? { local: data.local } : {}),        ...(data.lat !== undefined && data.lng !== undefined
           ? { coordenadas: { lat: data.lat, lng: data.lng } }
           : {}),
       };
@@ -237,8 +233,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
             name?: string;
             formatted?: string;
             address_line1?: string;
-            address_line2?: string;
-            street?: string;
+            address_line2?: string;            street?: string;
             housenumber?: string;
             suburb?: string;
             district?: string;
