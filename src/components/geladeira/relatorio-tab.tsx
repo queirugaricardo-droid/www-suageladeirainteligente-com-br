@@ -11,7 +11,6 @@ import {
   Trash2,
   X,
   ShoppingCart,
-  Store,
   TriangleAlert,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
@@ -24,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Gauge } from "./gauge";
-import { buscarMercados, estimarPrecos } from "@/lib/fridge.functions";
+import { resolverLocalizacao, estimarPrecos } from "@/lib/fridge.functions";
 import { categoriaPalpite, emojiDoAlimento, gerarRelatorio, mesmoItem } from "@/lib/fridge-logic";
 import { CATEGORIAS } from "@/lib/fridge-types";
 import type { ItemIdeal, Loja, PrecoEstimado, Relatorio } from "@/lib/fridge-types";
@@ -59,7 +58,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [local, setLocal] = useState("");
   const [localManual, setLocalManual] = useState("");
   const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
-  const [lojas, setLojas] = useState<Loja[]>([]);
 
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
@@ -68,7 +66,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [editando, setEditando] = useState<number | null>(null);
   const [nomeEditado, setNomeEditado] = useState("");
 
-  const mercados = useServerFn(buscarMercados);
+  const localizar = useServerFn(resolverLocalizacao);
   const orcar = useServerFn(estimarPrecos);
 
   const faltantes = useMemo(
@@ -170,24 +168,19 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
         try {
           const localizacao = { lat: pos.coords.latitude, lng: pos.coords.longitude };
           setCoordenadas(localizacao);
-          let localizacaoTexto = "";
           try {
-            const resposta = await mercados({ data: localizacao });
-            setLojas(resposta.lojas);
-            localizacaoTexto = resposta.local;
-            if (resposta.local) setLocal(resposta.local);
-            if (!resposta.ok) setAvisoLocal(resposta.erro);
-            else if (resposta.lojas.length > 0)
-              toast.success(`${resposta.lojas.length} mercados encontrados perto de você.`);
-            else
-              setAvisoLocal(
-                "Não encontrei mercados por perto. Vou consultar os preços disponíveis na região.",
-              );
+            const resposta = await localizar({ data: localizacao });
+            if (!resposta.ok || !resposta.local) {
+              setAvisoLocal(resposta.erro || "Não consegui identificar sua cidade. Digite-a manualmente.");
+              return;
+            }
+            setLocal(resposta.local);
+            setLocalManual(resposta.local);
+            setAvisoLocal("");
+            await calcularPrecos("", localizacao, resposta.local, []);
           } catch {
-            setAvisoLocal("Não consegui listar os mercados próximos. Vou consultar os preços da região.");
+            setAvisoLocal("Não consegui identificar sua cidade agora. Digite a cidade ou o CEP.");
           }
-          setPrecos([]);
-          setObservacao("");
 
         } finally {
           setCarregandoLocal(false);
@@ -207,7 +200,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     mercado?: string,
     ponto: { lat: number; lng: number } | null = coordenadas,
     localidade = local,
-    mercadosParaConsultar: Loja[] = lojas,
   ) {
     if (faltantes.length === 0) return;
     if (faltantes.length > 20) {
@@ -224,16 +216,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             quantidade: l.faltam || l.item.quantidade,
             unidade: l.item.unidade,
           })),
-          local: ponto ? localidade : localManual.trim() || local || "",
-          mercado: mercado || "",
-          lojas: mercado
-            ? []
-            : mercadosParaConsultar.map((loja) => ({
-                nome: loja.nome,
-                ...(loja.lat !== undefined && loja.lng !== undefined
-                  ? { lat: loja.lat, lng: loja.lng }
-                  : {}),
-              })),
+          local: localidade || localManual.trim() || "",
           lat: ponto?.lat,
           lng: ponto?.lng,
         },
@@ -246,7 +229,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
       if (resposta.precos.some((preco) => preco.precoUnitario > 0)) {
-        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Média dos preços dos mercados próximos calculada.");
+        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Preços regionais consultados e média calculada quando há registros suficientes.");
       } else {
         toast.error("Não encontrei preços observados compatíveis com os itens e a região.");
       }
@@ -259,13 +242,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
 
   useEffect(() => {
-    if (lojas.length > 0 && faltantes.length > 0) {
-      void calcularPrecos("", coordenadas, local, lojas);
-    }
-    // calcularPrecos usa os valores atuais desta renderização.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lojas, faltantes, coordenadas, local, localManual, orcar]);
-
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
   const rotuloFrequencia =
@@ -528,7 +504,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <Button className="w-full sm:w-auto" variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
-              {carregandoLocal ? "Buscando mercados e preços..." : "Usar minha localização"}
+              {carregandoLocal ? "Identificando região e consultando preços..." : "Usar minha localização"}
             </Button>
             <Input
               className="h-10 w-full min-w-0 sm:w-56"
@@ -541,7 +517,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             />
             <Button
               className="w-full sm:w-auto"
-              onClick={() => calcularPrecos()}
+              onClick={() => calcularPrecos("", coordenadas, localManual.trim() || local)}
               disabled={carregandoPrecos || faltantes.length === 0}
             >
               {carregandoPrecos ? (
@@ -555,7 +531,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
           {local && (
             <p className="text-sm text-muted-foreground">
-              Mercados encontrados perto de: <span className="text-foreground">{local}</span>
+              Localidade identificada: <span className="text-foreground">{local}</span>
             </p>
           )}
 
@@ -565,32 +541,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               <AlertDescription>{avisoLocal}</AlertDescription>
             </Alert>
           )}
-
-          {lojas.length > 0 && (
-            <>
-            <p className="text-sm font-medium">Mercados encontrados — todos serão consultados automaticamente:</p>
-            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
-              {lojas.map((loja) => (
-                <div
-                  key={`${loja.nome}-${loja.endereco}`}
-                  className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-xl border border-border p-3 sm:gap-3"
-                >
-                  <Store className="mt-0.5 size-4 text-primary" />
-                  <div className="min-w-0 flex-1 break-words">
-                    <p className="whitespace-normal break-words text-sm font-medium leading-snug">{loja.nome}</p>
-                    <p className="whitespace-normal break-words text-xs leading-snug text-muted-foreground">{loja.endereco}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {loja.distanciaKm !== undefined && `${loja.distanciaKm} km`}
-                      {loja.nota !== undefined && ` · nota ${loja.nota}`}
-                    </p>
-                  </div>
-                  <Badge variant="secondary" className="shrink-0">Incluído</Badge>
-                </div>
-              ))}
-            </div>
-            </>
-          )}
-
 
           {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
         </CardContent>
