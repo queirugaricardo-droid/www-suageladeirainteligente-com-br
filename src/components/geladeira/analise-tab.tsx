@@ -140,7 +140,10 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           accept="image/*"
           capture="environment"
           className="hidden"
-          onChange={(e) => {\n            void escolher(e.target.files?.[0]);\n            e.target.value = "";\n          }}
+          onChange={(e) => {
+            void escolher(e.target.files?.[0]);
+            e.target.value = "";
+          }}
         />
         <input
           ref={inputArquivo}
