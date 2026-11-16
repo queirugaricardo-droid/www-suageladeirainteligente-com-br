@@ -681,9 +681,18 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Preços observados em lojas online e coletados pelo PreçoMelhor. Podem variar por filial,
-                promoções e disponibilidade; sem localização ou mercado específico, usamos a média das
-                ofertas disponíveis. Consulte até 20 itens por vez.
+                Preços consultados no PreçoMelhor e no{" "}
+                <a
+                  href="https://prices.openfoodfacts.org/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  Open Prices (Open Food Facts)
+                </a>
+                , uma base comunitária de preços. Os registros podem não cobrir todos os produtos ou
+                mercados e podem variar por filial, data e promoção. Quando não houver registro
+                compatível, o aplicativo não inventa um preço. Consulte até 20 itens por vez.
               </p>
             </>
           )}
