@@ -202,118 +202,117 @@ function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
 }
 
 type OpenStreetMapPlace = {
+  name?: string;
+  display_name?: string;
+  lat?: string;
+  lon?: string;
   type?: string;
-  lat?: number;
-  lon?: number;
-  center?: { lat?: number; lon?: number };
-  tags?: Record<string, string | undefined>;
+  class?: string;
+  address?: {
+    road?: string;
+    house_number?: string;
+    suburb?: string;
+    city?: string;
+    town?: string;
+    village?: string;
+    state?: string;
+  };
 };
 
 /**
- * Busca mercados no OpenStreetMap quando não há chave Geoapify configurada.
- * Usa apenas dados OSM públicos e mantém o raio de 5 km da busca original.
+ * Busca supermercados na base pública do OpenStreetMap, sem exigir chave paga.
+ * A caixa de busca é limitada à região e a distância exata é recalculada no servidor.
  */
 async function buscarMercadosOpenStreetMap(lat: number, lng: number) {
-  const query = [
-    "[out:json][timeout:12];",
-    "(",
-    `node["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
-    `way["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
-    `relation["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
-    ");",
-    "out center tags 100;",
-  ].join("");
+  const parametros = new URLSearchParams({
+    q: "supermarket",
+    viewbox: `${lng - 0.06},${lat + 0.05},${lng + 0.06},${lat - 0.05}`,
+    bounded: "1",
+    format: "jsonv2",
+    addressdetails: "1",
+    limit: "40",
+  });
 
-  const endpoints = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
-  ];
-  let ultimoErro = "Os servidores públicos do OpenStreetMap não responderam.";
-
-  for (const endpoint of endpoints) {
-    try {
-      const resposta = await fetch(endpoint, {
-        method: "POST",
+  try {
+    const resposta = await fetch(
+      `https://nominatim.openstreetmap.org/search?${parametros.toString()}`,
+      {
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-          "User-Agent": "SuaGeladeiraInteligente/1.0",
+          "User-Agent": "SuaGeladeiraInteligente/1.0 (https://suageladeirainteligente.com.br)",
         },
-        body: new URLSearchParams({ data: query }),
         signal: AbortSignal.timeout(12_000),
-      });
+      },
+    );
 
-      if (!resposta.ok) {
-        ultimoErro = `OpenStreetMap respondeu com status ${resposta.status}.`;
-        continue;
-      }
-
-      const json = (await resposta.json()) as { elements?: OpenStreetMapPlace[] };
-      const vistos = new Set<string>();
-      const lojas = (json.elements ?? [])
-        .map((elemento) => {
-          const tags = elemento.tags ?? {};
-          const nome = tags["name"]?.trim() || tags["brand"]?.trim() || tags["operator"]?.trim();
-          const latLoja = elemento.lat ?? elemento.center?.lat;
-          const lngLoja = elemento.lon ?? elemento.center?.lon;
-          if (!nome || typeof latLoja !== "number" || typeof lngLoja !== "number") return null;
-
-          const endereco =
-            [
-              [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(", "),
-              tags["addr:suburb"] || tags["addr:district"],
-              tags["addr:city"],
-            ]
-              .filter(Boolean)
-              .join(" - ") || "Endereço não informado";
-          const chave = `${nome.toLocaleLowerCase("pt-BR")}|${latLoja.toFixed(4)}|${lngLoja.toFixed(4)}`;
-          if (vistos.has(chave)) return null;
-          vistos.add(chave);
-
-          return {
-            nome,
-            endereco,
-            lat: latLoja,
-            lng: lngLoja,
-            distanciaKm:
-              Math.round(distanciaKm({ lat, lng }, { lat: latLoja, lng: lngLoja }) * 10) / 10,
-            cidade: tags["addr:city"] ?? "",
-            bairro: tags["addr:suburb"] ?? tags["addr:district"] ?? "",
-            estado: tags["addr:state"] ?? "",
-          };
-        })
-        .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
-        .sort((a, b) => a.distanciaKm - b.distanciaKm)
-        .slice(0, 8);
-
-      const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
-      const local = lojaComLocal
-        ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
-        : "";
-
-      return {
-        ok: lojas.length > 0,
-        conectado: true,
-        erro:
-          lojas.length > 0
-            ? ""
-            : "O OpenStreetMap não encontrou mercados cadastrados neste raio de 5 km.",
-        lojas,
-        local,
-      };
-    } catch (erro) {
-      ultimoErro = erro instanceof Error ? erro.message : ultimoErro;
+    if (!resposta.ok) {
+      throw new Error(`OpenStreetMap respondeu com status ${resposta.status}.`);
     }
-  }
 
-  console.error("Busca OpenStreetMap indisponível:", ultimoErro);
-  return {
-    ok: false,
-    conectado: false,
-    erro: "Não foi possível localizar mercados pela base aberta agora. Tente novamente em instantes.",
-    lojas: [],
-    local: "",
-  };
+    const json = (await resposta.json()) as OpenStreetMapPlace[];
+    const vistos = new Set<string>();
+    const lojas = json
+      .map((local) => {
+        const nome = local.name?.trim();
+        const latLoja = Number(local.lat);
+        const lngLoja = Number(local.lon);
+        if (!nome || !Number.isFinite(latLoja) || !Number.isFinite(lngLoja)) return null;
+
+        const distancia = distanciaKm({ lat, lng }, { lat: latLoja, lng: lngLoja });
+        if (distancia > 5) return null;
+
+        const endereco = [
+          [local.address?.road, local.address?.house_number].filter(Boolean).join(", "),
+          local.address?.suburb,
+          local.address?.city ?? local.address?.town ?? local.address?.village,
+        ]
+          .filter(Boolean)
+          .join(" - ") || local.display_name || "Endereço não informado";
+        const chave = `${nome.toLocaleLowerCase("pt-BR")}|${latLoja.toFixed(4)}|${lngLoja.toFixed(4)}`;
+        if (vistos.has(chave)) return null;
+        vistos.add(chave);
+
+        return {
+          nome,
+          endereco,
+          lat: latLoja,
+          lng: lngLoja,
+          distanciaKm: Math.round(distancia * 10) / 10,
+          cidade: local.address?.city ?? local.address?.town ?? local.address?.village ?? "",
+          bairro: local.address?.suburb ?? "",
+          estado: local.address?.state ?? "",
+        };
+      })
+      .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
+      .sort((a, b) => a.distanciaKm - b.distanciaKm)
+      .slice(0, 8);
+
+    const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
+    const local = lojaComLocal
+      ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
+      : "";
+
+    return {
+      ok: lojas.length > 0,
+      conectado: true,
+      erro:
+        lojas.length > 0
+          ? ""
+          : "O OpenStreetMap não encontrou supermercados cadastrados em até 5 km.",
+      lojas,
+      local,
+    };
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : "Falha ao consultar o OpenStreetMap.";
+    console.error("Busca OpenStreetMap indisponível:", mensagem);
+    return {
+      ok: false,
+      conectado: false,
+      erro: "Não foi possível localizar supermercados pela base aberta agora. Tente novamente em instantes.",
+      lojas: [],
+      local: "",
+    };
+  }
 }
 
 export const buscarMercados = createServerFn({ method: "POST" })
