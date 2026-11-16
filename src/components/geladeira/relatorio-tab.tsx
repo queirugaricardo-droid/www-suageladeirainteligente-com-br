@@ -226,7 +226,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
   async function calcularPrecos(
     mercado?: string,
-    ponto = coordenadas,
+    ponto: { lat: number; lng: number } | null = coordenadas,
     localidade = local,
   ) {
     if (faltantes.length === 0) return;
@@ -588,7 +588,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                         loja.nome,
                         loja.lat !== undefined && loja.lng !== undefined
                           ? { lat: loja.lat, lng: loja.lng }
-                          : coordenadas,
+                          : null,
                       );
                     }}
                     disabled={carregandoPrecos}
