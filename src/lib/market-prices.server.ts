@@ -504,56 +504,69 @@ export async function consultarPrecosObservados(
       let ofertasMelhor: NonNullable<ProductResponse["prices"]> = [];
 
       // PreçoMelhor é gratuito e permite consultar os preços por filial.
-      // Avalia até três variantes compatíveis para não ficar preso ao primeiro
-      // cadastro, que pode não ter preço na loja selecionada.
+      // Se a busca completa não encontrar preço local, tenta também os termos
+      // específicos (marca/variante) sem a primeira palavra genérica do alimento.
       try {
-        const busca = await buscarJson<{ items?: SearchProduct[] }>(
-          `${BASE_URL}/search?q=${encodeURIComponent(item.nome)}`,
-        );
-        const candidatos = (busca.items ?? [])
-          .filter(
-            (candidate): candidate is SearchProduct & { ean: string; product_name: string } =>
-              !!candidate.ean && !!candidate.product_name,
-          )
-          .map((candidate) => ({
-            ...candidate,
-            score: scoreProductName(item.nome, candidate.product_name),
-          }))
-          .filter((candidate) => candidate.score === 1)
-          .sort((a, b) => (b.store_count ?? 0) - (a.store_count ?? 0))
-          .slice(0, filtros.mercado?.trim() ? 6 : filtros.coordenadas || localResolvido ? 3 : 1);
+        const termosAlternativos = tokens(item.nome)
+          .slice(1)
+          .filter((token) => !/^\\d/.test(token));
+        const consultas = [item.nome];
+        if (termosAlternativos.length >= 2) consultas.push(termosAlternativos.join(" "));
 
-        for (const candidato of candidatos) {
-          const codigoNormalizado = normalizarCodigoProduto(candidato.ean);
-          const dados = await buscarJson<ProductResponse>(
-            `${BASE_URL}/product/${encodeURIComponent(codigoNormalizado)}`,
+        const codigosTentados = new Set<string>();
+        for (const consulta of consultas) {
+          const busca = await buscarJson<{ items?: SearchProduct[] }>(
+            `${BASE_URL}/search?q=${encodeURIComponent(consulta)}`,
           );
-          const nomeConfirmado = dados.product?.product_name ?? candidato.product_name;
-          if (scoreProductName(item.nome, nomeConfirmado) !== 1) continue;
+          const candidatos = (busca.items ?? [])
+            .filter(
+              (candidate): candidate is SearchProduct & { ean: string; product_name: string } =>
+                !!candidate.ean && !!candidate.product_name,
+            )
+            .map((candidate) => ({
+              ...candidate,
+              score: scoreProductName(item.nome, candidate.product_name),
+            }))
+            .filter((candidate) => candidate.score === 1)
+            .sort((a, b) => (b.store_count ?? 0) - (a.store_count ?? 0))
+            .slice(0, filtros.mercado?.trim() ? 6 : filtros.coordenadas || localResolvido ? 3 : 1);
 
-          const candidatoConfirmado = {
-            ...candidato,
-            ean: codigoNormalizado,
-            product_name: nomeConfirmado,
-          };
-          const ofertas = ofertaDaLoja(
-            dados.prices ?? [],
-            filtros.mercado,
-            filtros.coordenadas,
-            localResolvido,
-          );
+          for (const candidato of candidatos) {
+            const codigoNormalizado = normalizarCodigoProduto(candidato.ean);
+            if (codigosTentados.has(codigoNormalizado)) continue;
+            codigosTentados.add(codigoNormalizado);
 
-          if (!produtoMelhor) {
-            produtoMelhor = candidatoConfirmado;
-            dadosMelhor = dados;
+            const dados = await buscarJson<ProductResponse>(
+              `${BASE_URL}/product/${encodeURIComponent(codigoNormalizado)}`,
+            );
+            const nomeConfirmado = dados.product?.product_name ?? candidato.product_name;
+            if (scoreProductName(item.nome, nomeConfirmado) !== 1) continue;
+
+            const candidatoConfirmado = {
+              ...candidato,
+              ean: codigoNormalizado,
+              product_name: nomeConfirmado,
+            };
+            const ofertas = ofertaDaLoja(
+              dados.prices ?? [],
+              filtros.mercado,
+              filtros.coordenadas,
+              localResolvido,
+            );
+
+            if (!produtoMelhor) {
+              produtoMelhor = candidatoConfirmado;
+              dadosMelhor = dados;
+            }
+
+            if (ofertas.length > 0) {
+              produtoMelhor = candidatoConfirmado;
+              dadosMelhor = dados;
+              ofertasMelhor = ofertas;
+              break;
+            }
           }
-
-          if (ofertas.length > 0) {
-            produtoMelhor = candidatoConfirmado;
-            dadosMelhor = dados;
-            ofertasMelhor = ofertas;
-            break;
-          }
+          if (ofertasMelhor.length > 0) break;
         }
       } catch {
         // Open Prices is still queried even if PreçoMelhor is temporarily unavailable.
