@@ -127,7 +127,9 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
             <span>
               Fotos e análises ilimitadas
             </span>
-            <Button variant="ghost" size="sm" onClick={() =>\n                void sair().catch(() => toast.error("Não foi possível sair da conta."))\n              }>
+            <Button variant="ghost" size="sm" onClick={() =>
+                void sair().catch(() => toast.error("Não foi possível sair da conta."))
+              }>
               Sair ({usuario.email})
             </Button>
           </div>
