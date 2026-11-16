@@ -52,12 +52,681 @@ const FREQUENCIAS = [
   { fator: 4, titulo: "Mensal", detalhe: "4x" },
 ] as const;
 
-export function RelatorioTab({
-  relatorio,
-  estoque,
-  atualizarRelatorio,
-  adicionar,
-  irParaAnalise,
-}: Props) {
+export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar, irParaAnalise }: Props) {
   const [comprados, setComprados] = useState<Record<string, boolean>>({});
-  const [precos, setP...[truncated]
+  const [precos, setPrecos] = useState<PrecoEstimado[]>([]);
+  const [observacao, setObservacao] = useState("");
+  const [local, setLocal] = useState("");
+  const [localManual, setLocalManual] = useState("");
+  const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
+  const [lojas, setLojas] = useState<Loja[]>([]);
+
+  const [avisoLocal, setAvisoLocal] = useState("");
+  const [carregandoLocal, setCarregandoLocal] = useState(false);
+  const [carregandoPrecos, setCarregandoPrecos] = useState(false);
+  const [frequencia, setFrequencia] = useState<number>(1);
+  const [editando, setEditando] = useState<number | null>(null);
+  const [nomeEditado, setNomeEditado] = useState("");
+
+  const mercados = useServerFn(buscarMercados);
+  const orcar = useServerFn(estimarPrecos);
+
+  const faltantes = useMemo(
+    () => (relatorio?.linhas ?? []).filter((l) => l.situacao !== "ok"),
+    [relatorio],
+  );
+
+  const precoDe = (nome: string) => precos.find((p) => p.nome === nome)?.precoUnitario ?? 0;
+
+  const detectados = useMemo(() => {
+    if (!relatorio) return [];
+    if (relatorio.detectados) return relatorio.detectados;
+    return [
+      ...relatorio.linhas
+        .filter((linha) => linha.detectado > 0)
+        .map((linha) => ({
+          nome: linha.item.nome,
+          quantidade: linha.detectado,
+          unidade: linha.item.unidade,
+          emoji: linha.item.emoji,
+        })),
+      ...relatorio.extras,
+    ];
+  }, [relatorio]);
+
+  const ajustarQuantidade = (indice: number, direcao: -1 | 1) => {
+    const item = detectados[indice];
+    if (!item) return;
+    const unidade = item.unidade.toLowerCase();
+    const passo = unidade === "g" || unidade === "ml" ? 50 : unidade === "kg" || unidade === "l" ? 0.1 : 1;
+    const novaQuantidade = Math.max(0, Math.round((item.quantidade + direcao * passo) * 100) / 100);
+    const atualizados = detectados.map((detectado, i) =>
+      i === indice ? { ...detectado, quantidade: novaQuantidade } : detectado,
+    );
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+  };
+
+  const iniciarEdicao = (indice: number) => {
+    setEditando(indice);
+    setNomeEditado(detectados[indice]?.nome ?? "");
+  };
+
+  const confirmarEdicao = (indice: number) => {
+    const item = detectados[indice];
+    const nome = nomeEditado.trim();
+    setEditando(null);
+    if (!item || !nome || nome === item.nome) return;
+    const atualizados = detectados.map((detectado, i) =>
+      i === indice
+        ? { ...detectado, nome, emoji: emojiDoAlimento(nome) }
+        : detectado,
+    );
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" renomeado para "${nome}".`);
+  };
+
+  const removerDetectado = (indice: number) => {
+    const item = detectados[indice];
+    if (!item) return;
+    const atualizados = detectados.filter((_, i) => i !== indice);
+    atualizarRelatorio(gerarRelatorio(estoque, atualizados));
+    toast.success(`"${item.nome}" removido da análise.`);
+  };
+
+  const quantidadeDetectada = (quantidade: number, unidade: string) =>
+    unidade.toLowerCase() === "un"
+      ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
+      : `≈ ${quantidade.toLocaleString("pt-BR")} ${unidade} (estimado)`;
+
+  // Compra = estoque ideal para o período (ideal × frequência) menos o que já foi confirmado na geladeira.
+  const quantidadeComprar = (linha: { faltam: number; detectado: number; item: ItemIdeal }) =>
+    Math.max(0, Math.round((linha.item.quantidade * frequencia - linha.detectado) * 100) / 100);
+
+  const precoLinha = (linha: { faltam: number; detectado: number; item: ItemIdeal }) => {
+    const base = linha.faltam || linha.item.quantidade;
+    return base > 0 ? (precoDe(linha.item.nome) * quantidadeComprar(linha)) / base : 0;
+  };
+
+  const total = useMemo(
+    () =>
+      faltantes
+        .filter((l) => !comprados[l.item.id])
+        .reduce((soma, l) => soma + precoLinha(l), 0),
+    [faltantes, comprados, precos, frequencia],
+  );
+
+  if (!relatorio) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+          <ShoppingCart className="size-8 text-primary" />
+          <p className="font-medium">Nenhum relatório ainda</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Envie uma foto da sua geladeira aberta para ver o que está faltando e montar a lista de
+            compras.
+          </p>
+          <Button onClick={irParaAnalise}>Analisar geladeira</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const resumo = {
+    ok: relatorio.linhas.filter((l) => l.situacao === "ok").length,
+    baixo: relatorio.linhas.filter((l) => l.situacao === "baixo").length,
+    faltando: relatorio.linhas.filter((l) => l.situacao === "faltando").length,
+  };
+
+  const usarLocalizacao = () => {
+    if (!navigator.geolocation) {
+      setAvisoLocal(
+        "Seu navegador não permite detectar a localização. Digite sua cidade no campo ao lado.",
+      );
+      return;
+    }
+    setCarregandoLocal(true);
+    setAvisoLocal("");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const localizacao = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setCoordenadas(localizacao);
+          let localizacaoTexto = "";
+          try {
+            const resposta = await mercados({ data: localizacao });
+            setLojas(resposta.lojas);
+            localizacaoTexto = resposta.local;
+            if (resposta.local) setLocal(resposta.local);
+            if (!resposta.ok) setAvisoLocal(resposta.erro);
+            else if (resposta.lojas.length > 0)
+              toast.success(`${resposta.lojas.length} mercados encontrados perto de você.`);
+            else
+              setAvisoLocal(
+                "Não encontrei mercados por perto. Vou consultar os preços disponíveis na região.",
+              );
+          } catch {
+            setAvisoLocal("Não consegui listar os mercados próximos. Vou consultar os preços da região.");
+          }
+          setPrecos([]);
+          setObservacao("");
+
+        } finally {
+          setCarregandoLocal(false);
+        }
+      },
+      () => {
+        setCarregandoLocal(false);
+        setAvisoLocal(
+          "Permissão de localização negada. Digite sua cidade, bairro ou CEP no campo ao lado.",
+        );
+      },
+      { timeout: 12000 },
+    );
+  };
+
+  async function calcularPrecos(
+    mercado?: string,
+    ponto: { lat: number; lng: number } | null = coordenadas,
+    localidade = local,
+    mercadosParaConsultar: Loja[] = lojas,
+  ) {
+    if (faltantes.length === 0) return;
+    if (faltantes.length > 20) {
+      toast.error("A fonte gratuita permite consultar até 20 itens por vez.");
+      return;
+    }
+    setCarregandoPrecos(true);
+    setPrecos([]);
+    setObservacao("");
+    try {
+      const resposta = await orcar({
+        data: {
+          itens: faltantes.map((l) => ({
+            nome: l.item.nome,
+            quantidade: l.faltam || l.item.quantidade,
+            unidade: l.item.unidade,
+          })),
+          local: ponto ? localidade : localManual.trim() || local || "",
+          mercado: mercado || "",
+          lojas: mercado
+            ? []
+            : mercadosParaConsultar.map((loja) => ({
+                nome: loja.nome,
+                ...(loja.lat !== undefined && loja.lng !== undefined
+                  ? { lat: loja.lat, lng: loja.lng }
+                  : {}),
+              })),
+          lat: ponto?.lat,
+          lng: ponto?.lng,
+        },
+      });
+      if (!resposta.ok) {
+        toast.error(resposta.erro);
+        return;
+      }
+      setPrecos(resposta.precos);
+      setObservacao(resposta.observacao);
+      if (!local && resposta.local) setLocal(resposta.local);
+      if (resposta.precos.some((preco) => preco.precoUnitario > 0)) {
+        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Média dos preços dos mercados próximos calculada.");
+      } else {
+        toast.error("Não encontrei preços observados compatíveis com os itens e a região.");
+      }
+    } catch {
+      toast.error("Não consegui estimar os preços agora. Tente de novo em instantes.");
+    } finally {
+      setCarregandoPrecos(false);
+    }
+  }
+
+
+  useEffect(() => {
+    if (lojas.length > 0 && faltantes.length > 0) {
+      void calcularPrecos("", coordenadas, local, lojas);
+    }
+    // A consulta automática deve ocorrer quando a lista de mercados for atualizada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojas]);
+
+  const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
+
+  const rotuloFrequencia =
+    FREQUENCIAS.find((f) => f.fator === frequencia)?.titulo ?? "Semanal";
+
+  const textoLista = () =>
+    [
+      `🧊 Lista de compras (${rotuloFrequencia.toLowerCase()})`,
+      "",
+      ...pendentes.map(
+        (l) =>
+          `${emojiDoAlimento(l.item.nome, l.item.emoji)} ${l.item.nome} — ${quantidadeComprar(l)} ${l.item.unidade}`,
+      ),
+      "",
+      total > 0 ? `💰 Total estimado: ${moeda(total)}` : "",
+    ]
+      .filter((linha) => linha !== "")
+      .join("\n");
+
+  const copiarLista = async () => {
+    await navigator.clipboard.writeText(textoLista());
+    toast.success("Lista copiada para a área de transferência!");
+  };
+
+  const enviarWhatsApp = () => {
+    if (pendentes.length === 0) {
+      toast.info("Nada para comprar por enquanto.");
+      return;
+    }
+    window.open(`https://wa.me/?text=${encodeURIComponent(textoLista())}`, "_blank", "noopener");
+  };
+
+
+  return (
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
+      <Card>
+        <CardContent className="flex flex-col items-center gap-6 py-8 sm:flex-row sm:justify-around">
+          <Gauge percentual={relatorio.abastecimento} />
+          <div className="grid gap-3 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge className="bg-primary/15 text-primary">{resumo.ok}</Badge> itens completos
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-chart-4/25 text-chart-4">{resumo.baixo}</Badge> em quantidade
+              baixa
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className="bg-destructive/15 text-destructive">{resumo.faltando}</Badge>{" "}
+              faltando
+            </div>
+            <p className="max-w-56 text-xs text-muted-foreground">
+              Análise feita em{" "}
+              {new Date(relatorio.criadoEm).toLocaleString("pt-BR", {
+                dateStyle: "short",
+                timeStyle: "short",
+              })}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {detectados.length > 0 && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-lg">Alimentos detectados pela IA</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {detectados.map((item, indice) => (
+              <div
+                key={`${item.nome}-${indice}`}
+                className="flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card/80 p-3"
+              >
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-secondary text-3xl" aria-hidden="true">
+                  {emojiDoAlimento(item.nome, item.emoji)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  {editando === indice ? (
+                    <form
+                      className="flex items-center gap-1"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        confirmarEdicao(indice);
+                      }}
+                    >
+                      <Input
+                        autoFocus
+                        className="h-8 text-sm"
+                        value={nomeEditado}
+                        onChange={(e) => setNomeEditado(e.target.value)}
+                        aria-label={`Novo nome para ${item.nome}`}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Confirmar novo nome"
+                      >
+                        <Check className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Cancelar edição"
+                        onClick={() => setEditando(null)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </form>
+                  ) : (
+                    <>
+                      <p className="truncate font-semibold">{item.nome}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {quantidadeDetectada(item.quantidade, item.unidade)}
+                      </p>
+                    </>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1" aria-label={`Ajustar ${item.nome}`}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Diminuir quantidade de ${item.nome}`}
+                    onClick={() => ajustarQuantidade(indice, -1)}
+                    disabled={item.quantidade <= 0}
+                  >
+                    <Minus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Aumentar quantidade de ${item.nome}`}
+                    onClick={() => ajustarQuantidade(indice, 1)}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9"
+                    aria-label={`Renomear ${item.nome}`}
+                    onClick={() => iniciarEdicao(indice)}
+                  >
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 text-destructive hover:text-destructive"
+                    aria-label={`Remover ${item.nome} da análise`}
+                    onClick={() => removerDetectado(indice)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Comparativo com o seu estoque ideal</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {relatorio.linhas.map((l) => (
+            <div key={l.item.id} className="rounded-xl border border-border p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xl" aria-hidden="true">
+                  {emojiDoAlimento(
+                    l.item.nome,
+                    detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
+                  )}
+                </span>
+                <span className="font-medium">{l.item.nome}</span>
+                <Badge className={rotulo[l.situacao].classe}>{rotulo[l.situacao].texto}</Badge>
+                <span className="ml-auto text-sm tabular-nums text-muted-foreground">
+                  {l.detectado} de {l.item.quantidade} {l.item.unidade}
+                </span>
+              </div>
+              <Progress value={l.percentual * 100} className="mt-2 h-2" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {relatorio.extras.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Também vi na sua geladeira</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {relatorio.extras.map((e, i) => (
+              <Button
+                key={`${e.nome}-${i}`}
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  adicionar({
+                    nome: e.nome,
+                    quantidade: e.quantidade || 1,
+                    unidade: "un",
+                    categoria: categoriaPalpite(e.nome),
+                  });
+                  toast.success(`${e.nome} adicionado ao estoque ideal.`);
+                }}
+              >
+                <Plus className="size-3.5" /> {emojiDoAlimento(e.nome, e.emoji)} {e.nome}
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="w-full min-w-0 max-w-full overflow-hidden">
+        <CardHeader className="min-w-0">
+          <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-lg">
+            <MapPin className="size-4 text-primary" /> Preços perto de você
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="min-w-0 space-y-4 overflow-hidden">
+          <p className="break-words text-xs text-muted-foreground">
+            Localização dos estabelecimentos: dados do{" "}
+            <a
+              href="https://www.geoapify.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Geoapify
+            </a>{" "}
+            e do{" "}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              © OpenStreetMap contributors
+            </a>
+            .
+          </p>
+          <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
+              {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
+              {carregandoLocal ? "Buscando mercados e preços..." : "Usar minha localização"}
+            </Button>
+            <Input
+              className="h-10 w-full min-w-0 sm:w-56"
+              placeholder="Digite cidade ou CEP"
+              value={localManual}
+              onChange={(e) => {
+                setLocalManual(e.target.value);
+                setCoordenadas(null);
+              }}
+            />
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => calcularPrecos()}
+              disabled={carregandoPrecos || faltantes.length === 0}
+            >
+              {carregandoPrecos ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Calculando...
+                </>
+              ) : (
+                "Atualizar preços"
+              )}
+            </Button>
+          </div>
+
+          {local && (
+            <p className="text-sm text-muted-foreground">
+              Mercados encontrados perto de: <span className="text-foreground">{local}</span>
+            </p>
+          )}
+
+          {avisoLocal && (
+            <Alert>
+              <TriangleAlert className="size-4" />
+              <AlertDescription>{avisoLocal}</AlertDescription>
+            </Alert>
+          )}
+
+          {lojas.length > 0 && (
+            <>
+            <p className="text-sm font-medium">Mercados encontrados — todos serão consultados automaticamente:</p>
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+              {lojas.map((loja) => (
+                <div
+                  key={`${loja.nome}-${loja.endereco}`}
+                  className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-xl border border-border p-3 sm:gap-3"
+                >
+                  <Store className="mt-0.5 size-4 text-primary" />
+                  <div className="min-w-0 flex-1 break-words">
+                    <p className="whitespace-normal break-words text-sm font-medium leading-snug">{loja.nome}</p>
+                    <p className="whitespace-normal break-words text-xs leading-snug text-muted-foreground">{loja.endereco}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {loja.distanciaKm !== undefined && `${loja.distanciaKm} km`}
+                      {loja.nota !== undefined && ` · nota ${loja.nota}`}
+                    </p>
+                  </div>
+                  <Badge variant="secondary" className="shrink-0">Incluído</Badge>
+                </div>
+              ))}
+            </div>
+            </>
+          )}
+
+
+          {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShoppingCart className="size-4 text-primary" /> Lista de compras
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={copiarLista} disabled={!pendentes.length}>
+              <Copy className="size-3.5" /> Copiar
+            </Button>
+            <Button
+              size="sm"
+              className="bg-[#25D366] text-white hover:bg-[#1eb85a]"
+              onClick={enviarWhatsApp}
+              disabled={!pendentes.length}
+            >
+              <MessageCircle className="size-3.5" /> Compartilhar no WhatsApp
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Com que frequência você faz mercado?</p>
+            <div className="grid grid-cols-3 gap-2">
+              {FREQUENCIAS.map((f) => (
+                <Button
+                  key={f.fator}
+                  type="button"
+                  variant={frequencia === f.fator ? "default" : "outline"}
+                  className="h-auto flex-col gap-0.5 py-2"
+                  onClick={() => {
+                    setFrequencia(f.fator);
+                    toast.success(`Quantidades ajustadas para compra ${f.titulo.toLowerCase()}.`);
+                  }}
+                >
+                  <span className="text-sm font-semibold">{f.titulo}</span>
+                  <span className="text-xs opacity-80">{f.detalhe}</span>
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {faltantes.length === 0 ? (
+            <p className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+              <Check className="size-4 text-primary" /> Sua geladeira está completa. Nada para
+              comprar!
+            </p>
+          ) : (
+            <>
+              {CATEGORIAS.filter((c) => faltantes.some((l) => l.item.categoria === c)).map((c) => (
+                <div key={c} className="space-y-2">
+                  <p className="text-sm font-semibold text-muted-foreground">{c}</p>
+                  {faltantes
+                    .filter((l) => l.item.categoria === c)
+                    .map((l) => {
+                      const marcado = !!comprados[l.item.id];
+                      const preco = precoLinha(l);
+                      return (
+                        <label
+                          key={l.item.id}
+                          className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3"
+                        >
+                          <Checkbox
+                            checked={marcado}
+                            onCheckedChange={(v) =>
+                              setComprados((atual) => ({ ...atual, [l.item.id]: v === true }))
+                            }
+                          />
+                          <span className="text-xl" aria-hidden="true">
+                            {emojiDoAlimento(
+                              l.item.nome,
+                              detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
+                            )}
+                          </span>
+                          <span className={marcado ? "line-through opacity-60" : ""}>
+                            {l.item.nome}
+                          </span>
+                          <span className="text-sm tabular-nums text-muted-foreground">
+                            {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
+                          </span>
+                          <span className="ml-auto text-sm tabular-nums">
+                            {preco > 0 ? moeda(preco) : "—"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                </div>
+              ))}
+              <div className="flex items-center justify-between rounded-xl bg-secondary p-4">
+                <span className="font-medium">
+                  Total estimado <span className="text-xs text-muted-foreground">({rotuloFrequencia.toLowerCase()})</span>
+                </span>
+                <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Preços consultados no{" "}
+                <a
+                  href="https://www.precomelhor.com.br"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  PreçoMelhor
+                </a>{" "}e no{" "}
+                <a
+                  href="https://prices.openfoodfacts.org/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  Open Prices (Open Food Facts)
+                </a>
+                , uma base comunitária de preços. Os registros podem não cobrir todos os produtos ou
+                mercados e podem variar por filial, data e promoção. Quando não houver registro
+                compatível, o aplicativo não inventa um preço. Consulte até 20 itens por vez.
+              </p>
+            </>
+          )}
+
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
