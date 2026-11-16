@@ -11,7 +11,7 @@ const TERMOS_DE_OUTRA_CATEGORIA = new Set([
   "muffin", "bolo", "cake", "torta", "pizza", "strogonoff", "lasanha", "sopa",
   "caldo", "creme", "cream", "sabor", "flavored", "recheio", "barra", "barrinha",
   "cereal", "mix", "mistura", "farinha", "chips", "snack", "biscoito", "cookie",
-  "doce", "bala", "goma", "gelatina", "confeito", "pirulito", "chiclete", "jujuba", "marshmallow", "integral", "parboilizado", "parbolizado", "carnaroli", "arborio", "arboreo", "basmati", "jasmim", "macarrao", "massa", "talharim", "espaguete", "nhoque", "pasta", "geleia", "compota", "conserva", "extrato", "ketchup", "mostarda",
+  "doce", "bala", "goma", "gelatina", "confeito", "pirulito", "chiclete", "jujuba", "marshmallow", "macarrao", "massa", "talharim", "espaguete", "nhoque", "pasta", "geleia", "compota", "conserva", "extrato", "ketchup", "mostarda",
   "marmita", "prato", "refeicao", "muffins", "pepper", "rings", "chip", "ring",
   "condensado", "achocolatado", "chocolate", "pao", "paozinho", "sorvete", "sorbet",
   "passa", "desidratado", "desidratada", "enlatado", "enlatada", "empanado", "empanada",
