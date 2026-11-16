@@ -321,25 +321,28 @@ async function consultarOpenPrices(
     const codigoProduto = produto?.code ?? codigo;
     if (!codigoProduto) return null;
 
-    const parametros = new URLSearchParams({
+    const parametrosBase = new URLSearchParams({
       product_code: codigoProduto,
       currency: "BRL",
       type: "PRODUCT",
       "duplicate_of__isnull": "true",
-      "date__gte": new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      "date__gte": new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       size: "100",
       ordering: "-date",
     });
+
+    // Primeira tentativa: restringe à região informada, quando disponível.
+    const parametrosLocais = new URLSearchParams(parametrosBase);
     if (filtros?.coordenadas) {
-      parametros.set("lat", String(filtros.coordenadas.lat));
-      parametros.set("lon", String(filtros.coordenadas.lng));
-      parametros.set("radius_km", "5");
+      parametrosLocais.set("lat", String(filtros.coordenadas.lat));
+      parametrosLocais.set("lon", String(filtros.coordenadas.lng));
+      parametrosLocais.set("radius_km", "5");
     }
 
-    const resposta = await buscarOpenPricesJson<OpenPricesPage>(
-      `${OPEN_PRICES_URL}/prices?${parametros.toString()}`,
+    const respostaLocal = await buscarOpenPricesJson<OpenPricesPage>(
+      `${OPEN_PRICES_URL}/prices?${parametrosLocais.toString()}`,
     );
-    let registros = (resposta.items ?? []).filter(
+    let registros = (respostaLocal.items ?? []).filter(
       (registro) => Number(registro.price) > 0 && (!registro.currency || registro.currency === "BRL"),
     );
 
@@ -359,6 +362,18 @@ async function consultarOpenPrices(
       }
     }
 
+    // Se não houver preço local compatível, tenta registros nacionais do mesmo produto.
+    // O resultado é identificado como referência nacional, nunca como preço da filial.
+    let abrangencia = "registros locais";
+    if (registros.length === 0) {
+      const respostaAmpla = await buscarOpenPricesJson<OpenPricesPage>(
+        `${OPEN_PRICES_URL}/prices?${parametrosBase.toString()}`,
+      );
+      registros = (respostaAmpla.items ?? []).filter(
+        (registro) => Number(registro.price) > 0 && (!registro.currency || registro.currency === "BRL"),
+      );
+      abrangencia = "registros nacionais (não confirmados na filial escolhida)";
+    }
     if (registros.length === 0) return null;
     const valores = registros
       .map((registro) => valorDoRegistroOpenPrices(registro, item, produto))
@@ -377,7 +392,7 @@ async function consultarOpenPrices(
       nome: item.nome,
       precoUnitario: Math.round(mediana(valores) * 100) / 100,
       produto: produto?.product_name ?? registros[0]?.product_name ?? item.nome,
-      mercado: loja,
+      mercado: abrangencia === "registros locais" ? loja : abrangencia,
       atualizadoEm: datas.at(-1) ?? "",
       fonte: "Open Prices",
     };
