@@ -14,6 +14,9 @@ test("rejeita produtos que apenas mencionam o alimento procurado", () => {
   assert.equal(scoreProductName("banana", "Banana Sauce Hot and Spicy"), 0);
   assert.equal(scoreProductName("ovos", "BALA FINI OVOS FRITOS 90G"), 0);
   assert.equal(scoreProductName("ovos", "Macarrão de Sêmola com Ovos Caseiro Talharim 500g"), 0);
+  assert.equal(scoreProductName("arroz Tio João 1kg", "Arroz Tipo 1 Tio João 1kg Integral"), 0);
+  assert.equal(scoreProductName("arroz Tio João 1kg", "Arroz Tio João Parboilizado 1kg"), 0);
+  assert.equal(scoreProductName("arroz integral Tio João 1kg", "Arroz Tipo 1 Tio João 1kg Integral"), 1);
   assert.equal(scoreProductName("ovos", "Ovos brancos 12 unidades"), 1);
   assert.equal(scoreProductName("banana", "Strawberry and Banana Nectar"), 0);
   assert.equal(scoreProductName("banana", "Stonyfield Organic Real Fruit Strawberry Banana"), 0);
