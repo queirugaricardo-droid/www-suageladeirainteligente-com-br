@@ -209,11 +209,16 @@ function mediaUnidade(
 ) {
   const desejada = unidadeBase(unidade);
   const pacote = unidadeBase(unidadePacote ?? "");
-  const escala =
-    desejada && pacote && desejada.tipo === pacote.tipo ? desejada.fator / pacote.fator : undefined;
-  if (!escala || !tamanhoPacote || tamanhoPacote <= 0) return precoOferta;
-  const tamanhoBase = tamanhoPacote * (unidadesNoPacote && unidadesNoPacote > 1 ? unidadesNoPacote : 1);
-  return (precoOferta / tamanhoBase) * desejada!.fator;
+  if (
+    !desejada ||
+    !pacote ||
+    desejada.tipo !== pacote.tipo ||
+    !tamanhoPacote ||
+    tamanhoPacote <= 0
+  ) return precoOferta;
+  const quantidadePacotes = unidadesNoPacote && unidadesNoPacote > 1 ? unidadesNoPacote : 1;
+  const tamanhoTotalNaUnidadeBase = tamanhoPacote * pacote.fator * quantidadePacotes;
+  return (precoOferta * desejada.fator) / tamanhoTotalNaUnidadeBase;
 }
 
 function ofertaDaLoja(
