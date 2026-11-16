@@ -399,6 +399,11 @@ export const buscarMercados = createServerFn({ method: "POST" })
         .sort((a, b) => a.distanciaKm - b.distanciaKm)
         .slice(0, 8);
 
+      if (lojas.length === 0) {
+        console.info("Geoapify não encontrou mercados; usando Overpass como alternativa.");
+        return buscarMercadosOpenStreetMap(data.lat, data.lng);
+      }
+
       const lojaComLocal = lojas.find((loja) => loja.cidade);
       const local = lojaComLocal
         ? [lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
@@ -420,15 +425,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
     } catch (e) {
       const mensagem = e instanceof Error ? e.message : "";
       console.error("Falha ao consultar Geoapify Places.", mensagem);
-      return {
-        ok: false as const,
-        conectado: true,
-        erro:
-          mensagem.includes("Timeout") || mensagem.includes("aborted")
-            ? "A busca de mercados demorou demais. Tente novamente."
-            : "Não foi possível consultar os mercados próximos agora.",
-        lojas: [],
-        local: "",
-      };
+      console.warn("Geoapify falhou; usando OpenStreetMap:", mensagem);
+      return buscarMercadosOpenStreetMap(data.lat, data.lng);
     }
   });
