@@ -568,7 +568,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
           {lojas.length > 0 && (
             <>
-            <p className="text-sm font-medium">Mercados encontrados — todos serão consultados automaticamente:</p>
+            <p className="text-sm font-medium">Supermercados próximos encontrados. Os preços serão consultados em conjunto, sem escolher uma filial:</p>
             <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               {lojas.map((loja) => (
                 <div
