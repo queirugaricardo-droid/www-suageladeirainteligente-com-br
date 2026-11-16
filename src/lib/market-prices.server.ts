@@ -94,6 +94,37 @@ function coordenadasDaLoja(value?: string): Coordinates | undefined {
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined;
 }
 
+const RAIO_MAXIMO_FILIAL_KM = 0.35;
+
+function correspondeFilialSelecionada(
+  nomeSelecionado: string,
+  coordenadasSelecionadas: Coordinates | undefined,
+  nomeEncontrado: string,
+  coordenadasEncontradas?: Coordinates,
+  nomesAlternativos: Array<string | null | undefined> = [],
+) {
+  if (!nomeSelecionado.trim()) return false;
+
+  // Quando as duas lojas têm coordenadas, a distância é o critério principal.
+  // Exige também algum nome em comum para evitar cruzar lojas diferentes próximas.
+  if (coordenadasSelecionadas && coordenadasEncontradas) {
+    const tokensEncontrados = new Set(tokens(nomeEncontrado));
+    const temIdentificadorComum = tokens(nomeSelecionado).some((token) =>
+      tokensEncontrados.has(token),
+    );
+    return (
+      temIdentificadorComum &&
+      distanciaKm(coordenadasSelecionadas, coordenadasEncontradas) <= RAIO_MAXIMO_FILIAL_KM
+    );
+  }
+
+  // Sem coordenadas confiáveis, só aceita igualdade integral do nome da filial.
+  const nomeNormalizado = normalizar(nomeSelecionado);
+  return [nomeEncontrado, ...nomesAlternativos].some(
+    (nome) => !!nome && normalizar(nome) === nomeNormalizado,
+  );
+}
+
 function unidadeBase(unidade: string): { tipo: string; fator: number } | undefined {
   const u = normalizar(unidade).replace(/s$/, "");
   if (["g", "grama", "gramas"].includes(u)) return { tipo: "massa", fator: 1 };
@@ -167,21 +198,15 @@ function ofertaDaLoja(
   });
 
   if (mercado?.trim()) {
-    const rede = tokens(mercado);
-    const porNome = disponiveis.filter((oferta) => {
-      const nomeLoja = new Set(tokens(oferta.store_name ?? ""));
-      const comuns = rede.filter((token) => nomeLoja.has(token)).length;
-      return comuns > 0 && comuns / Math.max(1, Math.min(rede.length, nomeLoja.size)) >= 0.5;
-    });
-
-    // Nome da rede tem prioridade. Se o fornecedor usa outro nome, aceita
-    // somente uma loja cadastrada muito próxima da filial selecionada.
-    if (porNome.length > 0) {
-      disponiveis = porNome;
-    } else {
-      // Mercado selecionado: não atribuir preço de outra filial por proximidade.
-      disponiveis = [];
-    }
+    // Uma rede não identifica uma filial: exige coordenadas próximas ou nome completo idêntico.
+    disponiveis = disponiveis.filter((oferta) =>
+      correspondeFilialSelecionada(
+        mercado,
+        coordenadas,
+        oferta.store_name ?? "",
+        coordenadasDaLoja(oferta.store_coords),
+      ),
+    );
   } else if (coordenadas) {
     disponiveis = disponiveis.filter((oferta) => {
       const ponto = coordenadasDaLoja(oferta.store_coords);
@@ -293,6 +318,14 @@ function nomeLocalOpenPrices(local?: OpenPricesLocation | null) {
     .join(" ");
 }
 
+function coordenadasOpenPrices(local?: OpenPricesLocation | null): Coordinates | undefined {
+  const lat = Number(local?.osm_lat);
+  const lng = Number(local?.osm_lon);
+  return Number.isFinite(lat) && Number.isFinite(lng) && local?.osm_lat != null && local?.osm_lon != null
+    ? { lat, lng }
+    : undefined;
+}
+
 function valorDoRegistroOpenPrices(
   registro: OpenPricesRecord,
   item: InputItem,
@@ -354,18 +387,19 @@ async function consultarOpenPrices(
     );
 
     if (filtros?.mercado?.trim()) {
-      const procurados = tokens(filtros.mercado);
-      const porNome = registros.filter((registro) => {
-        const nomeLoja = new Set(tokens(nomeLocalOpenPrices(registro.location)));
-        const comuns = procurados.filter((token) => nomeLoja.has(token)).length;
-        return comuns > 0 && comuns / Math.max(1, Math.min(procurados.length, nomeLoja.size)) >= 0.5;
-      });
-      if (porNome.length > 0) {
-        registros = porNome;
-      } else {
-        // Mercado selecionado sem correspondência pelo nome: não usar outra filial.
-        registros = [];
-      }
+      registros = registros.filter((registro) =>
+        correspondeFilialSelecionada(
+          filtros.mercado!,
+          filtros.coordenadas,
+          nomeLocalOpenPrices(registro.location),
+          coordenadasOpenPrices(registro.location),
+          [
+            registro.location?.osm_name,
+            registro.location?.osm_display_name,
+            registro.location?.osm_brand,
+          ],
+        ),
+      );
     } else if (!filtros?.coordenadas && filtros?.local?.trim()) {
       const cidade = normalizar(filtros.local.split(",")[0] ?? "");
       if (cidade.length > 2) {
