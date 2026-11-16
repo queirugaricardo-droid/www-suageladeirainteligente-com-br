@@ -234,9 +234,13 @@ function ofertaDaLoja(
       ),
     );
   } else if (coordenadas) {
+    const cidade = normalizar(local?.split(",")[0] ?? "");
     disponiveis = disponiveis.filter((oferta) => {
       const ponto = coordenadasDaLoja(oferta.store_coords);
-      return !!ponto && distanciaKm(coordenadas, ponto) <= 5;
+      // Use distância quando a fonte fornece coordenadas; quando não fornece,
+      // aceite somente loja identificada na mesma cidade informada pelo usuário.
+      if (ponto) return distanciaKm(coordenadas, ponto) <= 5;
+      return cidade.length > 2 && normalizar(oferta.city_name ?? "").includes(cidade);
     });
   } else if (local?.trim()) {
     const cidade = normalizar(local.split(",")[0] ?? "");
@@ -424,14 +428,16 @@ async function consultarOpenPrices(
     // A API pode retornar registros fora do raio solicitado em alguns cenários.
     // Revalida distância e exige uma localização identificável para preço regional.
     if (filtros?.coordenadas && !filtros?.mercado?.trim()) {
+      const cidade = normalizar(filtros.local?.split(",")[0] ?? "");
       registros = registros.filter((registro) => {
         const ponto = coordenadasOpenPrices(registro.location);
         const nomeMercado = registro.location?.osm_name?.trim() || registro.location?.osm_brand?.trim();
-        return (
-          !!ponto &&
-          !!nomeMercado &&
-          distanciaKm(filtros.coordenadas!, ponto) <= 5
-        );
+        if (!nomeMercado) return false;
+        if (ponto) return distanciaKm(filtros.coordenadas!, ponto) <= 5;
+        // Alguns registros públicos não têm latitude/longitude, mas identificam
+        // o estabelecimento e a cidade. Não os descarte se a cidade coincidir.
+        const cidadeRegistro = normalizar(registro.location?.osm_address_city ?? "");
+        return cidade.length > 2 && cidadeRegistro === cidade;
       });
     }
 
