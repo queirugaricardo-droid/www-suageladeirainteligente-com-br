@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
   ShoppingCart,
+  MapPin,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Gauge } from "./gauge";
-import { estimarPrecos } from "@/lib/fridge.functions";
+import { estimarPrecos, identificarLocalizacao } from "@/lib/fridge.functions";
 import { categoriaPalpite, emojiDoAlimento, gerarRelatorio, mesmoItem } from "@/lib/fridge-logic";
 import { CATEGORIAS } from "@/lib/fridge-types";
 import type { ItemIdeal, PrecoEstimado, Relatorio } from "@/lib/fridge-types";
@@ -53,11 +54,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [precos, setPrecos] = useState<PrecoEstimado[]>([]);
   const [observacao, setObservacao] = useState("");
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
+  const [localizacao, setLocalizacao] = useState("");
+  const [carregandoLocalizacao, setCarregandoLocalizacao] = useState(false);
   const [frequencia, setFrequencia] = useState<number>(1);
   const [editando, setEditando] = useState<number | null>(null);
   const [nomeEditado, setNomeEditado] = useState("");
 
   const orcar = useServerFn(estimarPrecos);
+  const identificar = useServerFn(identificarLocalizacao);
 
   const faltantes = useMemo(
     () => (relatorio?.linhas ?? []).filter((l) => l.situacao !== "ok"),
@@ -144,6 +148,41 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     faltando: relatorio?.linhas.filter((l) => l.situacao === "faltando").length ?? 0,
   };
 
+
+  async function identificarMinhaLocalizacao() {
+    if (!navigator.geolocation) {
+      toast.error("Este dispositivo não oferece localização GPS pelo navegador.");
+      return;
+    }
+    setCarregandoLocalizacao(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        try {
+          const resultado = await identificar({
+            data: {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            },
+          });
+          setLocalizacao(resultado.rotulo);
+          toast.success("Localização identificada.");
+        } catch (erro) {
+          toast.error(erro instanceof Error ? erro.message : "Não consegui identificar sua cidade.");
+        } finally {
+          setCarregandoLocalizacao(false);
+        }
+      },
+      (erro) => {
+        setCarregandoLocalizacao(false);
+        toast.error(
+          erro.code === erro.PERMISSION_DENIED
+            ? "Permita o acesso à localização para identificar sua cidade."
+            : "Não consegui acessar sua localização. Verifique o GPS e tente novamente.",
+        );
+      },
+      { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 },
+    );
+  }
 
   async function calcularPrecos() {
     if (faltantes.length === 0) return;
@@ -421,8 +460,27 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Consulte automaticamente o PreçoMelhor. O aplicativo reúne as ofertas disponíveis para cada produto e calcula a média entre as lojas cadastradas, sem selecionar supermercados ou usar serviços de mapas.
+            Primeiro, se desejar, identifique sua cidade pelo GPS. Essa localização serve somente para mostrar onde você está; ela não filtra lojas nem altera a consulta. Os preços são consultados exclusivamente no PreçoMelhor.
           </p>
+          <div className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <MapPin className="size-4 shrink-0 text-primary" />
+              <span className="break-words text-muted-foreground">
+                {localizacao || "Localização ainda não identificada"}
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void identificarMinhaLocalizacao()}
+              disabled={carregandoLocalizacao}
+            >
+              {carregandoLocalizacao ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
+              {carregandoLocalizacao ? "Identificando..." : "Identificar minha localização"}
+            </Button>
+          </div>
           <Button
             className="w-full sm:w-auto"
             onClick={() => void calcularPrecos()}
