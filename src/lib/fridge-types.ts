@@ -65,6 +65,8 @@ export type Loja = {
   nome: string;
   endereco: string;
   distanciaKm?: number | undefined;
+  lat?: number | undefined;
+  lng?: number | undefined;
   nota?: number | undefined;
 };
 
