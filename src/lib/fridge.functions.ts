@@ -126,6 +126,45 @@ export const analisarFoto = createServerFn({ method: "POST" })
     }
   });
 
+export const identificarLocalizacao = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+    }).parse(input),
+  )
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ data }) => {
+    const url = new URL("https://nominatim.openstreetmap.org/reverse");
+    url.search = new URLSearchParams({
+      format: "jsonv2",
+      lat: String(data.latitude),
+      lon: String(data.longitude),
+      zoom: "10",
+      addressdetails: "1",
+    }).toString();
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent": "SuaGeladeiraInteligente/1.0 (https://suageladeirainteligente.com.br)",
+        Accept: "application/json",
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) throw new Error("Não consegui identificar sua cidade pela localização.");
+    const json = await response.json() as {
+      address?: { city?: string; town?: string; municipality?: string; village?: string; state?: string; country?: string };
+    };
+    const address = json.address ?? {};
+    const cidade = address.city ?? address.town ?? address.municipality ?? address.village;
+    if (!cidade) throw new Error("A localização foi encontrada, mas não consegui identificar a cidade.");
+    return {
+      cidade,
+      estado: address.state ?? "",
+      pais: address.country ?? "",
+      rotulo: [cidade, address.state, address.country].filter(Boolean).join(", "),
+    };
+  });
+
 export const estimarPrecos = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z
