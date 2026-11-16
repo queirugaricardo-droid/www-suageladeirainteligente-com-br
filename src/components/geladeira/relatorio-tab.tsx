@@ -300,7 +300,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
       <Card>
         <CardContent className="flex flex-col items-center gap-6 py-8 sm:flex-row sm:justify-around">
           <Gauge percentual={relatorio.abastecimento} />
@@ -485,14 +485,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
+      <Card className="w-full min-w-0 max-w-full overflow-hidden">
+        <CardHeader className="min-w-0">
+          <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-lg">
             <MapPin className="size-4 text-primary" /> Preços perto de você
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-xs text-muted-foreground">
+        <CardContent className="min-w-0 space-y-4 overflow-hidden">
+          <p className="break-words text-xs text-muted-foreground">
             Localização dos estabelecimentos: dados do{" "}
             <a
               href="https://www.geoapify.com/"
@@ -513,13 +513,13 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             </a>
             .
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
+          <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
               {carregandoLocal ? "Buscando mercados e preços..." : "Usar minha localização"}
             </Button>
             <Input
-              className="h-9 w-56"
+              className="h-10 w-full min-w-0 sm:w-56"
               placeholder="Digite cidade ou CEP"
               value={localManual}
               onChange={(e) => {
@@ -528,6 +528,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               }}
             />
             <Button
+              className="w-full sm:w-auto"
               onClick={() => calcularPrecos()}
               disabled={carregandoPrecos || faltantes.length === 0}
             >
@@ -555,22 +556,23 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           )}
 
           {lojas.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               {lojas.map((loja) => (
                 <div
                   key={`${loja.nome}-${loja.endereco}`}
-                  className="flex items-start gap-3 rounded-xl border border-border p-3"
+                  className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-xl border border-border p-3 sm:gap-3"
                 >
                   <Store className="mt-0.5 size-4 text-primary" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{loja.nome}</p>
-                    <p className="truncate text-xs text-muted-foreground">{loja.endereco}</p>
+                  <div className="min-w-0 flex-1 break-words">
+                    <p className="whitespace-normal break-words text-sm font-medium leading-snug">{loja.nome}</p>
+                    <p className="whitespace-normal break-words text-xs leading-snug text-muted-foreground">{loja.endereco}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {loja.distanciaKm !== undefined && `${loja.distanciaKm} km`}
                       {loja.nota !== undefined && ` · nota ${loja.nota}`}
                     </p>
                   </div>
                   <Button
+                    className="shrink-0 px-2"
                     size="sm"
                     variant="ghost"
                     onClick={() => calcularPrecos(
@@ -588,7 +590,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
             </div>
           )}
 
-          {observacao && <p className="text-xs text-muted-foreground">{observacao}</p>}
+          {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
         </CardContent>
       </Card>
 
