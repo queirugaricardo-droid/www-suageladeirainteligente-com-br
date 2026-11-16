@@ -77,7 +77,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   );
 
   const precoDe = (nome: string) => precos.find((p) => p.nome === nome)?.precoUnitario ?? 0;
-
   const detectados = useMemo(() => {
     if (!relatorio) return [];
     if (relatorio.detectados) return relatorio.detectados;
@@ -147,34 +146,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     return base > 0 ? (precoDe(linha.item.nome) * quantidadeComprar(linha)) / base : 0;
   };
 
-  const total = useMemo(
-    () =>
-      faltantes
-        .filter((l) => !comprados[l.item.id])
-        .reduce((soma, l) => soma + precoLinha(l), 0),
-    [faltantes, comprados, precos, frequencia],
-  );
-
-  if (!relatorio) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <ShoppingCart className="size-8 text-primary" />
-          <p className="font-medium">Nenhum relatório ainda</p>
-          <p className="max-w-md text-sm text-muted-foreground">
-            Envie uma foto da sua geladeira aberta para ver o que está faltando e montar a lista de
-            compras.
-          </p>
-          <Button onClick={irParaAnalise}>Analisar geladeira</Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const total = faltantes
+    .filter((l) => !comprados[l.item.id])
+    .reduce((soma, l) => soma + precoLinha(l), 0);
 
   const resumo = {
-    ok: relatorio.linhas.filter((l) => l.situacao === "ok").length,
-    baixo: relatorio.linhas.filter((l) => l.situacao === "baixo").length,
-    faltando: relatorio.linhas.filter((l) => l.situacao === "faltando").length,
+    ok: relatorio?.linhas.filter((l) => l.situacao === "ok").length ?? 0,
+    baixo: relatorio?.linhas.filter((l) => l.situacao === "baixo").length ?? 0,
+    faltando: relatorio?.linhas.filter((l) => l.situacao === "faltando").length ?? 0,
   };
 
   const usarLocalizacao = () => {
@@ -237,8 +216,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     }
     setCarregandoPrecos(true);
     setPrecos([]);
-    setObservacao("");
-    try {
+    setObservacao("");    try {
       const resposta = await orcar({
         data: {
           itens: faltantes.map((l) => ({
@@ -284,9 +262,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     if (lojas.length > 0 && faltantes.length > 0) {
       void calcularPrecos("", coordenadas, local, lojas);
     }
-    // A consulta automática deve ocorrer quando a lista de mercados for atualizada.
+    // calcularPrecos usa os valores atuais desta renderização.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lojas]);
+  }, [lojas, faltantes, coordenadas, local, localManual, orcar]);
 
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
@@ -317,9 +295,23 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       toast.info("Nada para comprar por enquanto.");
       return;
     }
-    window.open(`https://wa.me/?text=${encodeURIComponent(textoLista())}`, "_blank", "noopener");
-  };
+    window.open(`https://wa.me/?text=${encodeURIComponent(textoLista())}`, "_blank", "noopener");  };
 
+
+  if (!relatorio) {
+    return (
+      <Card>        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+          <ShoppingCart className="size-8 text-primary" />
+          <p className="font-medium">Nenhum relatório ainda</p>
+          <p className="max-w-md text-sm text-muted-foreground">
+            Envie uma foto da sua geladeira aberta para ver o que está faltando e montar a lista de
+            compras.
+          </p>
+          <Button onClick={irParaAnalise}>Analisar geladeira</Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
@@ -397,8 +389,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                         onClick={() => setEditando(null)}
                       >
                         <X className="size-4" />
-                      </Button>
-                    </form>
+                      </Button>                    </form>
                   ) : (
                     <>
                       <p className="truncate font-semibold">{item.nome}</p>
@@ -478,7 +469,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           ))}
         </CardContent>
       </Card>
-
       {relatorio.extras.length > 0 && (
         <Card>
           <CardHeader>
@@ -557,8 +547,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               {carregandoPrecos ? (
                 <>
                   <Loader2 className="size-4 animate-spin" /> Calculando...
-                </>
-              ) : (
+                </>              ) : (
                 "Atualizar preços"
               )}
             </Button>
@@ -637,8 +626,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   variant={frequencia === f.fator ? "default" : "outline"}
                   className="h-auto flex-col gap-0.5 py-2"
                   onClick={() => {
-                    setFrequencia(f.fator);
-                    toast.success(`Quantidades ajustadas para compra ${f.titulo.toLowerCase()}.`);
+                    setFrequencia(f.fator);                    toast.success(`Quantidades ajustadas para compra ${f.titulo.toLowerCase()}.`);
                   }}
                 >
                   <span className="text-sm font-semibold">{f.titulo}</span>
@@ -717,8 +705,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   className="underline underline-offset-2"
                 >
                   Open Prices (Open Food Facts)
-                </a>
-                , uma base comunitária de preços. Os registros podem não cobrir todos os produtos ou
+                </a>                , uma base comunitária de preços. Os registros podem não cobrir todos os produtos ou
                 mercados e podem variar por filial, data e promoção. Quando não houver registro
                 compatível, o aplicativo não inventa um preço. Consulte até 20 itens por vez.
               </p>
