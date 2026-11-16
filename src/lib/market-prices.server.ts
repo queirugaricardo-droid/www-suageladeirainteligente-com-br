@@ -991,6 +991,9 @@ export async function consultarPrecosEmMercados(
   filtros: { local?: string; coordenadas?: Coordinates },
   lojas: LojaConsulta[],
 ) {
+  // A lista de mercados serve para confirmar a cobertura da busca local.
+  // Os preços NÃO são vinculados a uma filial escolhida: consultamos de uma só vez
+  // todas as ofertas das filiais que as fontes públicas retornarem na região.
   const lojasUnicas = lojas
     .filter((loja) => loja.nome.trim())
     .filter(
@@ -1007,154 +1010,32 @@ export async function consultarPrecosEmMercados(
         ) === index,
     );
 
-  const consultas: Array<{
-    loja: LojaConsulta;
-    precos: Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"];
-    observacao: string;
-  }> = [];
-  // Limita a concorrência para não disparar dezenas de consultas simultâneas nas fontes gratuitas.
-  let proxima = 0;
-  const trabalhadores = Array.from({ length: Math.min(3, lojasUnicas.length) }, async () => {
-    while (proxima < lojasUnicas.length) {
-      const indice = proxima++;
-      const loja = lojasUnicas[indice];
-      if (!loja) continue;
-      try {
-        const { coordenadas: _coordenadasDaPessoa, ...filtrosSemCoordenadas } = filtros;
-        const resultado = await consultarPrecosObservados(itens, {
-          ...filtrosSemCoordenadas,
-          mercado: loja.nome,
-          ...(loja.lat !== undefined && loja.lng !== undefined
-            ? { coordenadas: { lat: loja.lat, lng: loja.lng } }
-            : {}),
-        });
-        consultas[indice] = {
-          loja,
-          precos: resultado.precos,
-          observacao: resultado.observacao,
-        };
-      } catch (erro) {
-        const detalhe = erro instanceof Error ? erro.message : "Falha desconhecida na consulta.";
-        console.error("[precos] Falha ao consultar filial:", loja.nome, detalhe);
-        consultas[indice] = {
-          loja,
-          precos: [],
-          observacao: "Falha na filial " + loja.nome + ": " + detalhe,
-        };
-      }
-    }
+  const resultado = await consultarPrecosObservados(itens, {
+    ...(filtros.local ? { local: filtros.local } : {}),
+    ...(filtros.coordenadas ? { coordenadas: filtros.coordenadas } : {}),
   });
-  await Promise.all(trabalhadores);
 
-  // Segunda etapa: sem preço nas filiais escolhidas, consulta a base regional
-  // usando o GPS original. O nome da fonte é mantido para não atribuir o preço
-  // regional à filial selecionada.
-  const precosRegionais = new Map<string, Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"][number]>();
-  if (filtros.coordenadas) {
-    const itensSemPreco = itens.filter((item) =>
-      !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)),
-    );
-    const resultadosRegionais = await Promise.all(itensSemPreco.map(async (item) => {
-      try {
-        const regional = await consultarPrecosObservados([item], {
-          ...(filtros.local ? { local: filtros.local } : {}),
-          coordenadas: filtros.coordenadas!,
-        });
-        const registro = regional.precos.find((preco) => preco.precoUnitario > 0 && preco.mercado.trim());
-        return registro ? [item.nome, registro] as const : null;
-      } catch {
-        return null;
-      }
-    }));
-    for (const resultado of resultadosRegionais) if (resultado) precosRegionais.set(resultado[0], resultado[1]);
-  }
-
-  // Terceira etapa: se não houver observação nas filiais nem na região,
-  // consulta os preços públicos disponíveis em todo o Brasil. A origem é
-  // identificada como nacional e nunca é apresentada como preço da loja local.
-  const precosNacionais = new Map<string, Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"][number]>();
-  const itensSemPrecoLocal = itens.filter((item) =>
-    !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)) &&
-    !precosRegionais.has(item.nome),
-  );
-  const resultadosNacionais = await Promise.all(itensSemPrecoLocal.map(async (item) => {
-    try {
-      const nacional = await consultarPrecosObservados([item], {});
-      const registro = nacional.precos.find((preco) => preco.precoUnitario > 0 && preco.mercado.trim());
-      return registro ? [item.nome, registro] as const : null;
-    } catch {
-      return null;
-    }
+  const precos = resultado.precos.map((preco) => ({
+    ...preco,
+    mercado: preco.precoUnitario > 0
+      ? "Média dos preços das filiais próximas"
+      : "",
+    tipoPreco: preco.precoUnitario > 0 ? "média regional de filiais" : "indisponível",
   }));
-  for (const resultado of resultadosNacionais) if (resultado) precosNacionais.set(resultado[0], resultado[1]);
-
-  // Complementa os dados comunitários com a média oficial de varejo do IEA,
-  // somente para usuários em São Paulo e quando não existe preço local observado.
-  const itensSemPrecoParaIea = itens.filter((item) =>
-    !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)) &&
-    !precosRegionais.has(item.nome),
-  );
-  const precosIea = await consultarPrecosIea(itensSemPrecoParaIea, filtros.local);
-  for (const [nome, registro] of precosIea) precosRegionais.set(nome, registro);
-
-  const precos = itens.map((item) => {
-    const encontrados = consultas.flatMap(({ loja, precos: lista }) => {
-      const preco = lista.find(
-        (registro) => registro.nome === item.nome && registro.precoUnitario > 0,
-      );
-      return preco ? [{ ...preco, loja: loja.nome }] : [];
-    });
-    const regional = precosRegionais.get(item.nome);
-    const nacional = precosNacionais.get(item.nome);
-    const valores = encontrados.map((registro) => registro.precoUnitario);
-    const precoCalculado = encontrados.length
-      ? calcularMediaPrecos(valores)
-      : (regional?.precoUnitario ?? nacional?.precoUnitario ?? 0);
-    const datas = encontrados.map((registro) => registro.atualizadoEm ?? "").filter(Boolean).sort();
-    const usarRegional = encontrados.length === 0 && regional !== undefined;
-    const usarIea = usarRegional && regional.fonte === "IEA";
-    const usarNacional = encontrados.length === 0 && !usarRegional && nacional !== undefined;
-    return {
-      nome: item.nome,
-      precoUnitario: precoCalculado,
-      produto: encontrados[0]?.produto ?? regional?.produto ?? nacional?.produto ?? "",
-      mercado: encontrados.length
-        ? `Média de ${encontrados.length} mercado(s)`
-        : usarIea
-          ? regional.mercado
-          : usarRegional
-            ? `${regional.mercado} (preço regional)`
-            : usarNacional
-              ? `${nacional.mercado} (referência nacional, não é preço da filial)`
-              : "",
-      atualizadoEm: datas.at(-1) ?? regional?.atualizadoEm ?? nacional?.atualizadoEm ?? "",
-      mercadosConsultados: encontrados.length
-        ? encontrados.map((registro) => registro.loja)
-        : usarRegional
-          ? [regional.mercado]
-          : usarNacional
-            ? [`${nacional.mercado} (referência nacional)`]
-            : [],
-      quantidadeMercados: encontrados.length || (usarRegional || usarNacional ? 1 : 0),
-      tipoPreco: encontrados.length ? "filiais selecionadas" : usarIea ? "referência IEA" : usarRegional ? "regional" : usarNacional ? "nacional" : "indisponível",
-    };
-  });
 
   const totalComPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
-  const maiorData = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
-  const totalRegional = precos.filter((preco) => preco.tipoPreco === "regional").length;
-  const totalIea = precos.filter((preco) => preco.tipoPreco === "referência IEA").length;
-  const totalNacional = precos.filter((preco) => preco.tipoPreco === "nacional").length;
-  const diagnosticosFonte = [...new Set(
-    consultas.map((consulta) => consulta.observacao).filter(Boolean),
-  )];
   const observacao = [
-    `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`,
-    ...diagnosticosFonte,
-  ].join(" ");
-  return { precos, observacao, dataColeta: maiorData };
-}
+    `Busca automática em ${lojasUnicas.length} supermercado(s) próximo(s). Nenhuma filial precisa ser escolhida: as fontes públicas são consultadas pela região e o aplicativo calcula a média das ofertas compatíveis encontradas nas diferentes filiais. ${totalComPreco} de ${itens.length} produto(s) tiveram preço observado.`,
+    resultado.observacao,
+    "A média considera somente preços encontrados nas fontes públicas para a região; quando não há oferta compatível, o item permanece sem preço. Preços online podem diferir dos praticados na loja física.",
+  ].filter(Boolean).join(" ");
 
+  return {
+    precos,
+    observacao,
+    dataColeta: resultado.dataColeta,
+  };
+}
 
 /**
  * Calcula preços de referência para uma cidade inteira, sem selecionar filiais.
