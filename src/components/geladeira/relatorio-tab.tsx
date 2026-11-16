@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Check,
   Copy,
@@ -26,7 +26,7 @@ import { Gauge } from "./gauge";
 import { resolverLocalizacao, estimarPrecos } from "@/lib/fridge.functions";
 import { categoriaPalpite, emojiDoAlimento, gerarRelatorio, mesmoItem } from "@/lib/fridge-logic";
 import { CATEGORIAS } from "@/lib/fridge-types";
-import type { ItemIdeal, Loja, PrecoEstimado, Relatorio } from "@/lib/fridge-types";
+import type { ItemIdeal, PrecoEstimado, Relatorio } from "@/lib/fridge-types";
 
 type Props = {
   relatorio: Relatorio | null;
@@ -208,7 +208,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     }
     setCarregandoPrecos(true);
     setPrecos([]);
-    setObservacao("");    try {
+    setObservacao("");
+    try {
       const resposta = await orcar({
         data: {
           itens: faltantes.map((l) => ({
@@ -241,7 +242,6 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   }
 
 
-  useEffect(() => {
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
   const rotuloFrequencia =
