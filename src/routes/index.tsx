@@ -257,7 +257,7 @@ function Index() {
           </section>
         </TabsContent>
 
-        <div className={aba === "inicio" ? "hidden" : "mx-auto max-w-5xl px-4 py-8 pb-28 sm:px-6 md:pb-8"}>
+        <div className={aba === "inicio" ? "hidden" : "mx-auto w-full min-w-0 max-w-5xl overflow-x-hidden px-3 py-6 pb-28 sm:px-6 sm:py-8 md:pb-8"}>
           <TabsContent value="estoque">
             <EstoqueTab
               estoque={estoque}
