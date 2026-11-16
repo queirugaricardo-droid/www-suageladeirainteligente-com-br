@@ -254,6 +254,8 @@ async function buscarMercadosOpenStreetMap(lat: number, lng: number) {
     const lojas = json
       .map((local) => {
         const nome = local.name?.trim();
+        // Somente mercados e sacolões; nunca postos ou lojas de conveniência.
+        if (local.class !== "shop" || !["supermarket", "greengrocer", "grocery"].includes(local.type ?? "")) return null;
         const latLoja = Number(local.lat);
         const lngLoja = Number(local.lon);
         if (!nome || !Number.isFinite(latLoja) || !Number.isFinite(lngLoja)) return null;
@@ -320,8 +322,8 @@ export const buscarMercados = createServerFn({ method: "POST" })
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    // Geoapify Places API: pesquisa supermercados e lojas de conveniência
-    // num raio de 5 km. A chave fica exclusivamente no servidor (Vercel).
+    // Geoapify Places API: pesquisa somente supermercados num raio de 5 km.
+    // A chave fica exclusivamente no servidor (Vercel).
     const apiKey = process.env["GEOAPIFY_API_KEY"]?.trim();
     if (!apiKey) {
       return buscarMercadosOpenStreetMap(data.lat, data.lng);
@@ -329,7 +331,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
 
     try {
       const parametros = new URLSearchParams({
-        categories: "commercial.supermarket,commercial.convenience",
+        categories: "commercial.supermarket",
         filter: `circle:${data.lng},${data.lat},5000`,
         bias: `proximity:${data.lng},${data.lat}`,
         limit: "100",
