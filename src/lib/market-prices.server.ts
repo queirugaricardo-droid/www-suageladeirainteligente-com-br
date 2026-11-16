@@ -91,6 +91,12 @@ function coordenadasDaLoja(value?: string): Coordinates | undefined {
   return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : undefined;
 }
 
+function normalizarCodigoProduto(codigo: string) {
+  const digitos = codigo.replace(/\\D/g, "");
+  // GTIN-14 com zero à esquerda representa o mesmo GTIN-13.
+  return digitos.length === 14 && digitos.startsWith("0") ? digitos.slice(1) : digitos || codigo;
+}
+
 // Geocodificadores podem marcar entradas diferentes do mesmo estabelecimento.
 const RAIO_MAXIMO_FILIAL_KM = 0.75;
 
@@ -515,12 +521,21 @@ export async function consultarPrecosObservados(
           }))
           .filter((candidate) => candidate.score === 1)
           .sort((a, b) => (b.store_count ?? 0) - (a.store_count ?? 0))
-          .slice(0, filtros.mercado?.trim() || filtros.coordenadas || localResolvido ? 3 : 1);
+          .slice(0, filtros.mercado?.trim() ? 6 : filtros.coordenadas || localResolvido ? 3 : 1);
 
         for (const candidato of candidatos) {
+          const codigoNormalizado = normalizarCodigoProduto(candidato.ean);
           const dados = await buscarJson<ProductResponse>(
-            `${BASE_URL}/product/${encodeURIComponent(candidato.ean)}`,
+            `${BASE_URL}/product/${encodeURIComponent(codigoNormalizado)}`,
           );
+          const nomeConfirmado = dados.product?.product_name ?? candidato.product_name;
+          if (scoreProductName(item.nome, nomeConfirmado) !== 1) continue;
+
+          const candidatoConfirmado = {
+            ...candidato,
+            ean: codigoNormalizado,
+            product_name: nomeConfirmado,
+          };
           const ofertas = ofertaDaLoja(
             dados.prices ?? [],
             filtros.mercado,
@@ -529,12 +544,12 @@ export async function consultarPrecosObservados(
           );
 
           if (!produtoMelhor) {
-            produtoMelhor = candidato;
+            produtoMelhor = candidatoConfirmado;
             dadosMelhor = dados;
           }
 
           if (ofertas.length > 0) {
-            produtoMelhor = candidato;
+            produtoMelhor = candidatoConfirmado;
             dadosMelhor = dados;
             ofertasMelhor = ofertas;
             break;
