@@ -711,6 +711,29 @@ export async function consultarPrecosEmMercados(
   });
   await Promise.all(trabalhadores);
 
+  // Segunda etapa: sem preço nas filiais escolhidas, consulta a base regional
+  // usando o GPS original. O nome da fonte é mantido para não atribuir o preço
+  // regional à filial selecionada.
+  const precosRegionais = new Map<string, Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"][number]>();
+  if (filtros.coordenadas) {
+    const itensSemPreco = itens.filter((item) =>
+      !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)),
+    );
+    const resultadosRegionais = await Promise.all(itensSemPreco.map(async (item) => {
+      try {
+        const regional = await consultarPrecosObservados([item], {
+          ...(filtros.local ? { local: filtros.local } : {}),
+          coordenadas: filtros.coordenadas!,
+        });
+        const registro = regional.precos.find((preco) => preco.precoUnitario > 0 && preco.mercado.trim());
+        return registro ? [item.nome, registro] as const : null;
+      } catch {
+        return null;
+      }
+    }));
+    for (const resultado of resultadosRegionais) if (resultado) precosRegionais.set(resultado[0], resultado[1]);
+  }
+
   const precos = itens.map((item) => {
     const encontrados = consultas.flatMap(({ loja, precos: lista }) => {
       const preco = lista.find(
@@ -718,25 +741,26 @@ export async function consultarPrecosEmMercados(
       );
       return preco ? [{ ...preco, loja: loja.nome }] : [];
     });
+    const regional = precosRegionais.get(item.nome);
     const valores = encontrados.map((registro) => registro.precoUnitario);
-    const media = calcularMediaPrecos(valores);
-    const datas = encontrados
-      .map((registro) => registro.atualizadoEm ?? "")
-      .filter(Boolean)
-      .sort();
+    const media = encontrados.length ? calcularMediaPrecos(valores) : (regional?.precoUnitario ?? 0);
+    const datas = encontrados.map((registro) => registro.atualizadoEm ?? "").filter(Boolean).sort();
+    const usarRegional = encontrados.length === 0 && regional !== undefined;
     return {
       nome: item.nome,
       precoUnitario: media,
-      produto: encontrados[0]?.produto ?? "",
-      mercado: encontrados.length ? `Média de ${encontrados.length} mercado(s)` : "",
-      atualizadoEm: datas.at(-1) ?? "",
-      mercadosConsultados: encontrados.map((registro) => registro.loja),
-      quantidadeMercados: encontrados.length,
+      produto: encontrados[0]?.produto ?? regional?.produto ?? "",
+      mercado: encontrados.length ? `Média de ${encontrados.length} mercado(s)` : (usarRegional ? `${regional.mercado} (preço regional)` : ""),
+      atualizadoEm: datas.at(-1) ?? regional?.atualizadoEm ?? "",
+      mercadosConsultados: encontrados.length ? encontrados.map((registro) => registro.loja) : (usarRegional ? [`${regional.mercado} (preço regional)`] : []),
+      quantidadeMercados: encontrados.length || (usarRegional ? 1 : 0),
+      tipoPreco: encontrados.length ? "filiais selecionadas" : (usarRegional ? "regional" : "indisponível"),
     };
   });
 
   const totalComPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
   const maiorData = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
-  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). A média de cada produto considera somente as filiais que forneceram preço observado compatível; produtos sem registro ficam sem preço. ${totalComPreco} de ${itens.length} produto(s) tiveram ao menos um preço. Os registros podem não cobrir todos os mercados da região.`;
+  const totalRegional = precos.filter((preco) => preco.tipoPreco === "regional").length;
+  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita uma segunda busca regional. Preços regionais mostram o estabelecimento de origem e não são atribuídos à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço, sendo ${totalRegional} regionais. Produtos sem registro continuam sem preço.`;
   return { precos, observacao, dataColeta: maiorData };
 }
