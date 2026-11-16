@@ -421,6 +421,20 @@ async function consultarOpenPrices(
       (registro) => Number(registro.price) > 0 && registro.currency === "BRL",
     );
 
+    // A API pode retornar registros fora do raio solicitado em alguns cenários.
+    // Revalida distância e exige uma localização identificável para preço regional.
+    if (filtros?.coordenadas && !filtros?.mercado?.trim()) {
+      registros = registros.filter((registro) => {
+        const ponto = coordenadasOpenPrices(registro.location);
+        const nomeMercado = registro.location?.osm_name?.trim() || registro.location?.osm_brand?.trim();
+        return (
+          !!ponto &&
+          !!nomeMercado &&
+          distanciaKm(filtros.coordenadas!, ponto) <= 5
+        );
+      });
+    }
+
     if (filtros?.mercado?.trim()) {
       registros = registros.filter((registro) =>
         correspondeFilialSelecionada(
@@ -470,9 +484,20 @@ async function consultarOpenPrices(
       .map((registro) => registro.date ?? registro.created?.slice(0, 10) ?? "")
       .filter(Boolean)
       .sort();
+    const nomesMercados = [
+      ...new Set(
+        registros
+          .map((registro) => registro.location?.osm_name?.trim() || registro.location?.osm_brand?.trim())
+          .filter((nome): nome is string => !!nome),
+      ),
+    ];
+    // Em consulta regional, não exibe preço sem identificar o estabelecimento real.
+    if (filtros?.coordenadas && !filtros?.mercado?.trim() && nomesMercados.length === 0) {
+      return null;
+    }
     const loja = filtros?.mercado?.trim()
       ? filtros.mercado
-      : registros[0]?.location?.osm_name ?? registros[0]?.location?.osm_brand ?? "Open Prices";
+      : nomesMercados.join(", ") || "Open Prices";
 
     return {
       nome: item.nome,
@@ -600,6 +625,20 @@ export async function consultarPrecosObservados(
             .map((oferta) => oferta.update_date ?? "")
             .filter(Boolean)
             .sort();
+          const nomesMercados = [
+            ...new Set(ofertas.map((oferta) => oferta.store_name?.trim()).filter((nome): nome is string => !!nome)),
+          ];
+          // Preço regional só é válido quando a fonte informa o nome do mercado.
+          if (filtros.coordenadas && !filtros.mercado?.trim() && nomesMercados.length === 0) {
+            return {
+              nome: item.nome,
+              precoUnitario: 0,
+              produto: produtoMelhor.product_name,
+              mercado: "",
+              atualizadoEm: "",
+              fonte: "",
+            };
+          }
           return {
             nome: item.nome,
             precoUnitario: Math.round(preco * 100) / 100,
@@ -607,7 +646,7 @@ export async function consultarPrecosObservados(
             mercado: filtros.mercado?.trim()
               ? (ofertas[0]?.store_name ?? filtros.mercado)
               : filtros.coordenadas
-                ? "mercados próximos"
+                ? nomesMercados.join(", ")
                 : "ofertas online monitoradas",
             atualizadoEm: datas.at(-1) ?? "",
             fonte: "PreçoMelhor",
