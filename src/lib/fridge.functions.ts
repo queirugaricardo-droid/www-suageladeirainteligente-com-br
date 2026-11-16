@@ -148,7 +148,7 @@ export const estimarPrecos = createServerFn({ method: "POST" })
       return {
         ok: true as const,
         ...resultado,
-        local: data.lat !== undefined ? data.local?.trim() ?? "" : "",
+        local: resultado.local || data.local?.trim() || "",
       };
     } catch (e) {
       const erro = e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
