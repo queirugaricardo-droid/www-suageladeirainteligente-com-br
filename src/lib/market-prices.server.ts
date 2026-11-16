@@ -507,7 +507,7 @@ async function consultarOpenPrices(
 
     return {
       nome: item.nome,
-      precoUnitario: Math.round(mediana(valores) * 100) / 100,
+      precoUnitario: calcularMediaPrecos(valores),
       produto: produto?.product_name ?? registros[0]?.product_name ?? item.nome,
       mercado: abrangencia === "registros locais" ? loja : abrangencia,
       atualizadoEm: datas.at(-1) ?? "",
@@ -1106,4 +1106,29 @@ export async function consultarPrecosEmMercados(
   const totalNacional = precos.filter((preco) => preco.tipoPreco === "nacional").length;
   const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
   return { precos, observacao, dataColeta: maiorData };
+}
+
+
+/** Consulta preços observados na região e usa a média pública do IEA apenas como complemento para a cidade de São Paulo. */
+export async function consultarMediaRegional(
+  itens: InputItem[],
+  filtros: { local?: string; coordenadas?: Coordinates },
+) {
+  const observado = await consultarPrecosObservados(itens, filtros);
+  const localResolvido = await resolverLocalidade(filtros.local);
+  const referenciasIea = await consultarPrecosIea(itens, localResolvido);
+  const precos = observado.precos.map((preco) => {
+    if (preco.precoUnitario > 0) return preco;
+    const referencia = referenciasIea.get(preco.nome);
+    return referencia ? { ...referencia, tipoPreco: "referência IEA" } : preco;
+  });
+  const comPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
+  const observacao = [
+    observado.observacao,
+    referenciasIea.size > 0
+      ? "Para itens sem registro local, foi usada a média oficial de varejo do IEA da cidade de São Paulo, identificada separadamente; ela não representa uma filial nem outras cidades."
+      : "",
+    `${comPreco} de ${itens.length} produto(s) têm valor disponível. Itens sem fonte compatível permanecem sem preço.`,
+  ].filter(Boolean).join(" ");
+  return { precos, observacao, dataColeta: observado.dataColeta };
 }
