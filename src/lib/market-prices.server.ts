@@ -265,13 +265,14 @@ async function buscarProdutoOpenPrices(nome: string, codigo?: string) {
   const resposta = await buscarOpenPricesJson<OpenPricesPage>(
     `${OPEN_PRICES_URL}/products?${parametros.toString()}`,
   );
-  return (resposta.items ?? [])
+  const melhor = (resposta.items ?? [])
     .filter((produto) => !!produto.code && !!produto.product_name)
     .map((produto) => ({
       ...produto,
       score: similaridadeProduto(nome, produto.product_name ?? ""),
     }))
-    .sort((a, b) => b.score - a.score)[0] as (OpenPricesProduct & { score?: number }) | undefined;
+    .sort((a, b) => b.score - a.score)[0];
+  return melhor && melhor.score >= 0.5 ? melhor : undefined;
 }
 
 function nomeLocalOpenPrices(local?: OpenPricesLocation | null) {
