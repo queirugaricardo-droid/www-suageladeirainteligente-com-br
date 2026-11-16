@@ -531,27 +531,23 @@ async function consultarOpenPrices(
 
 export async function consultarPrecosObservados(
   itens: InputItem[],
-  filtros: { mercado?: string; local?: string; coordenadas?: Coordinates },
+  _filtros: { mercado?: string; local?: string; coordenadas?: Coordinates } = {},
 ) {
-  if (itens.length > 20)
+  if (itens.length > 20) {
     throw new Error("Consulte até 20 itens por vez para respeitar a cota da fonte de preços.");
-
-  const localResolvido = await resolverLocalidade(filtros.local);
+  }
 
   const resultados = await Promise.all(
     itens.map(async (item) => {
-      let produtoMelhor: (SearchProduct & { ean: string; product_name: string; score: number }) | undefined;
-      let dadosMelhor: ProductResponse | undefined;
-      let ofertasMelhor: NonNullable<ProductResponse["prices"]> = [];
-      let erroPrecoMelhor = "";
+      let produtoEncontrado: (SearchProduct & { ean: string; product_name: string; score: number }) | undefined;
+      let dadosProduto: ProductResponse | undefined;
+      let ofertasEncontradas: NonNullable<ProductResponse["prices"]> = [];
+      let erroConsulta = "";
 
-      // PreçoMelhor é gratuito e permite consultar os preços por filial.
-      // Se a busca completa não encontrar preço local, tenta também os termos
-      // específicos (marca/variante) sem a primeira palavra genérica do alimento.
       try {
         const termosAlternativos = tokens(item.nome)
           .slice(1)
-          .filter((token) => !/^\d/.test(token));
+          .filter((token) => !/^\\d/.test(token));
         const consultas = [item.nome];
         if (termosAlternativos.length >= 2) consultas.push(termosAlternativos.join(" "));
 
@@ -574,140 +570,109 @@ export async function consultarPrecosObservados(
             .slice(0, 6);
 
           for (const candidato of candidatos) {
-            const codigoNormalizado = normalizarCodigoProduto(candidato.ean);
-            if (codigosTentados.has(codigoNormalizado)) continue;
-            codigosTentados.add(codigoNormalizado);
+            const ean = normalizarCodigoProduto(candidato.ean);
+            if (codigosTentados.has(ean)) continue;
+            codigosTentados.add(ean);
 
             const dados = await buscarJson<ProductResponse>(
-              `${BASE_URL}/product/${encodeURIComponent(codigoNormalizado)}`,
+              `${BASE_URL}/product/${encodeURIComponent(ean)}`,
             );
             const nomeConfirmado = dados.product?.product_name ?? candidato.product_name;
             if (scoreProductName(item.nome, nomeConfirmado) !== 1) continue;
 
-            const candidatoConfirmado = {
-              ...candidato,
-              ean: codigoNormalizado,
-              product_name: nomeConfirmado,
-            };
-            // PreçoMelhor é a única fonte: considerar todas as filiais que retornarem oferta.
-            const ofertas = ofertaDaLoja(dados.prices ?? []);
+            const ofertas = (dados.prices ?? []).filter((oferta) => {
+              const preco = Number(oferta.promo_price ?? oferta.price);
+              return Number.isFinite(preco) && preco > 0;
+            });
 
-            if (!produtoMelhor) {
-              produtoMelhor = candidatoConfirmado;
-              dadosMelhor = dados;
+            if (!produtoEncontrado) {
+              produtoEncontrado = {
+                ...candidato,
+                ean,
+                product_name: nomeConfirmado,
+              };
+              dadosProduto = dados;
             }
 
             if (ofertas.length > 0) {
-              produtoMelhor = candidatoConfirmado;
-              dadosMelhor = dados;
-              ofertasMelhor = ofertas;
+              produtoEncontrado = {
+                ...candidato,
+                ean,
+                product_name: nomeConfirmado,
+              };
+              dadosProduto = dados;
+              ofertasEncontradas = ofertas;
               break;
             }
           }
-          if (ofertasMelhor.length > 0) break;
+          if (ofertasEncontradas.length > 0) break;
         }
       } catch (erro) {
-        erroPrecoMelhor =
-          erro instanceof Error ? erro.message : "Falha inesperada ao consultar PreçoMelhor.";
-        // A falha da fonte prioritária fica registrada; Open Prices só entra como complemento.
+        erroConsulta = erro instanceof Error
+          ? erro.message
+          : "Falha inesperada ao consultar PreçoMelhor.";
+        console.error("[precos] Falha no PreçoMelhor:", item.nome, erroConsulta);
       }
 
-      // Prioriza a variante que realmente possui oferta compatível com a filial.
-      // Assim, não exibe o preço de outra unidade da rede como se fosse da escolhida.
-      if (produtoMelhor && dadosMelhor) {
-        const ofertas = ofertasMelhor.length
-          ? ofertasMelhor
-: ofertaDaLoja(dadosMelhor.prices ?? []);
-        const valores = ofertas
+      if (produtoEncontrado && dadosProduto && ofertasEncontradas.length > 0) {
+        const valores = ofertasEncontradas
           .map((oferta) => Number(oferta.promo_price ?? oferta.price))
           .filter((preco) => Number.isFinite(preco) && preco > 0);
-        if (valores.length > 0) {
-          const precoPacote = media(valores);
-          const preco = mediaUnidade(
-            precoPacote,
-            item.unidade,
-            dadosMelhor.product?.normalized_value,
-            dadosMelhor.product?.normalized_unit,
-            dadosMelhor.product?.units_per_pack,
-          );
-          const datas = ofertas
-            .map((oferta) => oferta.update_date ?? "")
-            .filter(Boolean)
-            .sort();
-          const nomesMercados = [
-            ...new Set(ofertas.map((oferta) => oferta.store_name?.trim()).filter((nome): nome is string => !!nome)),
-          ];
-          // Preço regional só é válido quando a fonte informa o nome do mercado.
-          if (filtros.coordenadas && !filtros.mercado?.trim() && nomesMercados.length === 0) {
-            return {
-              nome: item.nome,
-              precoUnitario: 0,
-              produto: produtoMelhor.product_name,
-              mercado: "",
-              atualizadoEm: "",
-              fonte: "",
-            };
-          }
-          return {
-            nome: item.nome,
-            precoUnitario: Math.round(preco * 100) / 100,
-            produto: produtoMelhor.product_name,
-            mercado: filtros.mercado?.trim()
-              ? (ofertas[0]?.store_name ?? filtros.mercado)
-              : filtros.coordenadas
-                ? nomesMercados.join(", ")
-                : "ofertas online monitoradas",
-            atualizadoEm: datas.at(-1) ?? "",
-            fonte: "PreçoMelhor",
-          };
-        }
+        const precoMedioPacote = media(valores);
+        const precoUnitario = mediaUnidade(
+          precoMedioPacote,
+          item.unidade,
+          dadosProduto.product?.normalized_value,
+          dadosProduto.product?.normalized_unit,
+          dadosProduto.product?.units_per_pack,
+        );
+        const nomesLojas = [
+          ...new Set(
+            ofertasEncontradas
+              .map((oferta) => oferta.store_name?.trim())
+              .filter((nome): nome is string => !!nome),
+          ),
+        ];
+        const datas = ofertasEncontradas
+          .map((oferta) => oferta.update_date ?? "")
+          .filter(Boolean)
+          .sort();
+
+        return {
+          nome: item.nome,
+          precoUnitario: Math.round(precoUnitario * 100) / 100,
+          produto: produtoEncontrado.product_name,
+          mercado: `Média de ${valores.length} oferta(s) em ${nomesLojas.length} loja(s)`,
+          atualizadoEm: datas.at(-1) ?? "",
+          fonte: "PreçoMelhor",
+        };
       }
 
       return {
         nome: item.nome,
         precoUnitario: 0,
-        produto: produtoMelhor?.product_name ?? "",
+        produto: produtoEncontrado?.product_name ?? "",
         mercado: "",
         atualizadoEm: "",
         fonte: "",
-        ...(erroPrecoMelhor
-          ? { avisoFontePrincipal: "PreçoMelhor indisponível nesta consulta: " + erroPrecoMelhor }
+        ...(erroConsulta
+          ? { avisoFontePrincipal: "Erro ao consultar PreçoMelhor: " + erroConsulta }
           : { avisoFontePrincipal: "PreçoMelhor não retornou ofertas para este produto." }),
       };
     }),
+  );
 
   const semPreco = resultados.filter((resultado) => resultado.precoUnitario <= 0).length;
-  const dataMaisRecente = resultados
-    .map((resultado) => resultado.atualizadoEm)
-    .filter(Boolean)
-    .sort()
-    .at(-1);
-  const escopo = filtros.mercado
-    ? `ofertas encontradas para ${filtros.mercado}`
-    : filtros.coordenadas
-      ? "ofertas com lojas cadastradas em até 5 km"
-      : localResolvido
-        ? `ofertas associadas a ${localResolvido}`
-        : "média das ofertas disponíveis no Brasil";
-  const fontes = [...new Set(resultados.map((resultado) => resultado.fonte).filter(Boolean))];
-  const avisosPrecoMelhor = [...new Set(
-    resultados
-      .map((resultado) => "avisoFontePrincipal" in resultado ? resultado.avisoFontePrincipal : "")
-      .filter(Boolean),
-  )];
+  const datas = resultados.map((resultado) => resultado.atualizadoEm).filter(Boolean).sort();
   const observacao = [
-    `Consulta realizada exclusivamente no PreçoMelhor. A média considera as ofertas retornadas para o produto nas diferentes lojas cadastradas. Fontes com preços encontrados: ${fontes.length ? fontes.join(" e ") : "nenhuma"}.`,
-    ...avisosPrecoMelhor,
-    dataMaisRecente ? `Registro mais recente entre os itens: ${dataMaisRecente.slice(0, 10)}.` : "",
-    semPreco ? `${semPreco} item(ns) sem preço compatível nesta consulta.` : "",
-    "A cobertura depende dos produtos e das lojas cadastradas no PreçoMelhor; os preços podem variar por data e promoção.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    "Consulta realizada exclusivamente no PreçoMelhor. A média considera os preços válidos retornados para cada produto nas lojas cadastradas na plataforma.",
+    semPreco ? `${semPreco} item(ns) sem preço disponível no PreçoMelhor.` : "",
+    datas.length ? `Registro mais recente entre os itens: ${datas.at(-1)?.slice(0, 10)}.` : "",
+    "A cobertura depende dos produtos e das lojas cadastradas no PreçoMelhor; preços e promoções podem variar.",
+  ].filter(Boolean).join(" ");
 
-  return { precos: resultados, observacao, dataColeta: dataMaisRecente ?? "" };
+  return { precos: resultados, observacao, dataColeta: datas.at(-1) ?? "" };
 }
-
 
 type IeaRow = {
   produto: string;
