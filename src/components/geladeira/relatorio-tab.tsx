@@ -651,6 +651,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     .map((l) => {
                       const marcado = !!comprados[l.item.id];
                       const preco = precoLinha(l);
+                      const registroPreco = precos.find((p) => p.nome === l.item.nome);
                       return (
                         <label
                           key={l.item.id}
@@ -668,8 +669,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                               detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
                             )}
                           </span>
-                          <span className={marcado ? "line-through opacity-60" : ""}>
-                            {l.item.nome}
+                          <span className="min-w-0 flex-1">
+                            <span className={marcado ? "line-through opacity-60" : ""}>
+                              {l.item.nome}
+                            </span>
+                            {registroPreco?.mercado && (
+                              <span className="block break-words text-xs text-muted-foreground">
+                                {registroPreco.mercado}
+                              </span>
+                            )}
                           </span>
                           <span className="text-sm tabular-nums text-muted-foreground">
                             {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
