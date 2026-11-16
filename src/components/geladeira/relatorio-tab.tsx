@@ -573,7 +573,12 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => calcularPrecos(loja.nome)}
+                    onClick={() => calcularPrecos(
+                      loja.nome,
+                      loja.lat !== undefined && loja.lng !== undefined
+                        ? { lat: loja.lat, lng: loja.lng }
+                        : coordenadas,
+                    )}
                     disabled={carregandoPrecos}
                   >
                     Comparar

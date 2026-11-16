@@ -267,7 +267,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
       return {
         ok: true as const,
         conectado: true,
-        lojas: lojas.map(({ nome, endereco, distanciaKm }) => ({ nome, endereco, distanciaKm })),
+        lojas: lojas.map(({ nome, endereco, distanciaKm, lat, lng }) => ({ nome, endereco, distanciaKm, lat, lng })),
         local,
         erro: "",
       };

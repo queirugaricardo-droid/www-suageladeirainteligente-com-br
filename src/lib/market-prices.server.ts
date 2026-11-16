@@ -168,14 +168,25 @@ function ofertaDaLoja(
 
   if (mercado?.trim()) {
     const rede = tokens(mercado);
-    disponiveis = disponiveis.filter((oferta) => {
+    const porNome = disponiveis.filter((oferta) => {
       const nomeLoja = new Set(tokens(oferta.store_name ?? ""));
       const comuns = rede.filter((token) => nomeLoja.has(token)).length;
       return comuns > 0 && comuns / Math.max(1, Math.min(rede.length, nomeLoja.size)) >= 0.5;
     });
-  }
 
-  if (coordenadas) {
+    // Nome da rede tem prioridade. Se o fornecedor usa outro nome, aceita
+    // somente uma loja cadastrada muito próxima da filial selecionada.
+    if (porNome.length > 0) {
+      disponiveis = porNome;
+    } else if (coordenadas) {
+      disponiveis = disponiveis.filter((oferta) => {
+        const ponto = coordenadasDaLoja(oferta.store_coords);
+        return !!ponto && distanciaKm(coordenadas, ponto) <= 1.5;
+      });
+    } else {
+      disponiveis = [];
+    }
+  } else if (coordenadas) {
     disponiveis = disponiveis.filter((oferta) => {
       const ponto = coordenadasDaLoja(oferta.store_coords);
       return !!ponto && distanciaKm(coordenadas, ponto) <= 5;
@@ -348,11 +359,23 @@ async function consultarOpenPrices(
 
     if (filtros?.mercado?.trim()) {
       const procurados = tokens(filtros.mercado);
-      registros = registros.filter((registro) => {
+      const porNome = registros.filter((registro) => {
         const nomeLoja = new Set(tokens(nomeLocalOpenPrices(registro.location)));
         const comuns = procurados.filter((token) => nomeLoja.has(token)).length;
         return comuns > 0 && comuns / Math.max(1, Math.min(procurados.length, nomeLoja.size)) >= 0.5;
       });
+      if (porNome.length > 0) {
+        registros = porNome;
+      } else if (filtros.coordenadas) {
+        registros = registros.filter((registro) => {
+          const lat = Number(registro.location?.osm_lat);
+          const lng = Number(registro.location?.osm_lon);
+          return Number.isFinite(lat) && Number.isFinite(lng) &&
+            distanciaKm(filtros.coordenadas!, { lat, lng }) <= 1.5;
+        });
+      } else {
+        registros = [];
+      }
     } else if (!filtros?.coordenadas && filtros?.local?.trim()) {
       const cidade = normalizar(filtros.local.split(",")[0] ?? "");
       if (cidade.length > 2) {
@@ -362,17 +385,22 @@ async function consultarOpenPrices(
       }
     }
 
-    // Se não houver preço local compatível, tenta registros nacionais do mesmo produto.
-    // O resultado é identificado como referência nacional, nunca como preço da filial.
+    // Nunca substitui uma consulta de filial/região por preço nacional.
+    // A referência nacional só é permitida quando nenhuma loja ou região foi escolhida.
     let abrangencia = "registros locais";
-    if (registros.length === 0) {
+    if (
+      registros.length === 0 &&
+      !filtros?.mercado?.trim() &&
+      !filtros?.coordenadas &&
+      !filtros?.local?.trim()
+    ) {
       const respostaAmpla = await buscarOpenPricesJson<OpenPricesPage>(
         `${OPEN_PRICES_URL}/prices?${parametrosBase.toString()}`,
       );
       registros = (respostaAmpla.items ?? []).filter(
         (registro) => Number(registro.price) > 0 && (!registro.currency || registro.currency === "BRL"),
       );
-      abrangencia = "registros nacionais (não confirmados na filial escolhida)";
+      abrangencia = "registros nacionais (não confirmados em uma filial)";
     }
     if (registros.length === 0) return null;
     const valores = registros
@@ -442,6 +470,47 @@ export async function consultarPrecosObservados(
         // Open Prices is still queried even if PreçoMelhor is temporarily unavailable.
       }
 
+      // Prioriza ofertas do PreçoMelhor que correspondem à loja/filial escolhida.
+      // Assim, um registro nacional do Open Prices não encobre um preço local real.
+      if (produtoMelhor && dadosMelhor) {
+        const ofertas = ofertaDaLoja(
+          dadosMelhor.prices ?? [],
+          filtros.mercado,
+          filtros.coordenadas,
+          localResolvido,
+        );
+        const valores = ofertas
+          .map((oferta) => Number(oferta.promo_price ?? oferta.price))
+          .filter((preco) => Number.isFinite(preco) && preco > 0);
+        if (valores.length > 0) {
+          const precoPacote = media(valores);
+          const preco = mediaUnidade(
+            precoPacote,
+            item.quantidade,
+            item.unidade,
+            dadosMelhor.product?.normalized_value,
+            dadosMelhor.product?.normalized_unit,
+            dadosMelhor.product?.units_per_pack,
+          );
+          const datas = ofertas
+            .map((oferta) => oferta.update_date ?? "")
+            .filter(Boolean)
+            .sort();
+          return {
+            nome: item.nome,
+            precoUnitario: Math.round(preco * 100) / 100,
+            produto: produtoMelhor.product_name,
+            mercado: filtros.mercado?.trim()
+              ? (ofertas[0]?.store_name ?? filtros.mercado)
+              : filtros.coordenadas
+                ? "mercados próximos"
+                : "ofertas online monitoradas",
+            atualizadoEm: datas.at(-1) ?? "",
+            fonte: "PreçoMelhor",
+          };
+        }
+      }
+
       const precoOpenPrices = await consultarOpenPrices(
         item,
         produtoMelhor?.ean,
@@ -449,56 +518,13 @@ export async function consultarPrecosObservados(
       );
       if (precoOpenPrices) return precoOpenPrices;
 
-      if (!produtoMelhor || !dadosMelhor) {
-        return { nome: item.nome, precoUnitario: 0, produto: "", mercado: "", atualizadoEm: "", fonte: "" };
-      }
-
-      const ofertas = ofertaDaLoja(
-        dadosMelhor.prices ?? [],
-        filtros.mercado,
-        filtros.coordenadas,
-        localResolvido,
-      );
-      const valores = ofertas
-        .map((oferta) => Number(oferta.promo_price ?? oferta.price))
-        .filter((preco) => Number.isFinite(preco) && preco > 0);
-      if (valores.length === 0) {
-        return {
-          nome: item.nome,
-          precoUnitario: 0,
-          produto: produtoMelhor.product_name,
-          mercado: "",
-          atualizadoEm: "",
-          fonte: "",
-        };
-      }
-
-      const precoPacote = media(valores);
-      const preco = mediaUnidade(
-        precoPacote,
-        item.quantidade,
-        item.unidade,
-        dadosMelhor.product?.normalized_value,
-        dadosMelhor.product?.normalized_unit,
-        dadosMelhor.product?.units_per_pack,
-      );
-      const datas = ofertas
-        .map((oferta) => oferta.update_date ?? "")
-        .filter(Boolean)
-        .sort();
-      const nomeLoja = filtros.mercado?.trim()
-        ? (ofertas[0]?.store_name ?? filtros.mercado)
-        : filtros.coordenadas
-          ? "mercados próximos"
-          : "ofertas online monitoradas";
-
       return {
         nome: item.nome,
-        precoUnitario: Math.round(preco * 100) / 100,
-        produto: produtoMelhor.product_name,
-        mercado: nomeLoja,
-        atualizadoEm: datas.at(-1) ?? "",
-        fonte: "PreçoMelhor",
+        precoUnitario: 0,
+        produto: produtoMelhor?.product_name ?? "",
+        mercado: "",
+        atualizadoEm: "",
+        fonte: "",
       };
     }),
   );
