@@ -252,6 +252,7 @@ type OpenPricesRecord = {
   location?: OpenPricesLocation | null;
 };
 
+type OpenPricesProductsPage = { items?: OpenPricesProduct[] };
 type OpenPricesPage = { items?: OpenPricesRecord[] };
 
 const OPEN_PRICES_URL = "https://prices.openfoodfacts.org/api/v1";
@@ -301,7 +302,7 @@ async function buscarProdutoOpenPrices(nome: string, codigo?: string) {
     size: "20",
     ordering: "-price_count",
   });
-  const resposta = await buscarOpenPricesJson<OpenPricesPage>(
+  const resposta = await buscarOpenPricesJson<OpenPricesProductsPage>(
     `${OPEN_PRICES_URL}/products?${parametros.toString()}`,
   );
   const melhor = (resposta.items ?? [])
@@ -544,7 +545,7 @@ export async function consultarPrecosObservados(
       const precoOpenPrices = await consultarOpenPrices(
         item,
         produtoMelhor?.ean,
-        { ...filtros, local: localResolvido },
+        { ...filtros, ...(localResolvido ? { local: localResolvido } : {}) },
       );
       if (precoOpenPrices) return precoOpenPrices;
 
@@ -619,6 +620,7 @@ export async function consultarPrecosEmMercados(
     while (proxima < lojasUnicas.length) {
       const indice = proxima++;
       const loja = lojasUnicas[indice];
+      if (!loja) continue;
       try {
         const { coordenadas: _coordenadasDaPessoa, ...filtrosSemCoordenadas } = filtros;
         const resultado = await consultarPrecosObservados(itens, {
