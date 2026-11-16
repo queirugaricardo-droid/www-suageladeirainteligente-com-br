@@ -146,7 +146,8 @@ function mediaUnidade(
   const pacote = unidadeBase(unidadePacote ?? "");
   const escala =
     desejada && pacote && desejada.tipo === pacote.tipo ? desejada.fator / pacote.fator : undefined;
-  if (!escala || !tamanhoPacote || tamanhoPacote <= 0) return precoOferta;
+  if (!escala || !tamanhoPacote || tamanhoPacote <= 0)
+    return desejada?.tipo === "contagem" ? precoOferta * quantidade : precoOferta;
   const tamanhoBase =
     tamanhoPacote * (unidadesNoPacote && unidadesNoPacote > 1 ? unidadesNoPacote : 1);
   return (precoOferta / tamanhoBase) * (quantidade * escala);
