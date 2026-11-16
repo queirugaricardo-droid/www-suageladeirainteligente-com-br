@@ -1,3 +1,4 @@
+import { scoreProductName } from "./product-matching";
 type InputItem = { nome: string; quantidade: number; unidade: string };
 type Coordinates = { lat: number; lng: number };
 
@@ -69,12 +70,6 @@ function tokens(texto: string) {
     .filter((parte) => parte.length > 1 && !STOP_WORDS.has(parte));
 }
 
-function similaridadeProduto(consulta: string, produto: string) {
-  const procurados = tokens(consulta);
-  if (procurados.length === 0) return 0;
-  const encontrados = new Set(tokens(produto));
-  return procurados.filter((token) => encontrados.has(token)).length / procurados.length;
-}
 
 function distanciaKm(origem: Coordinates, destino: Coordinates) {
   const rad = (graus: number) => (graus * Math.PI) / 180;
@@ -283,9 +278,17 @@ function mediana(valores: number[]) {
 async function buscarProdutoOpenPrices(nome: string, codigo?: string) {
   if (codigo) {
     try {
-      return await buscarOpenPricesJson<OpenPricesProduct>(
+      const produtoPorCodigo = await buscarOpenPricesJson<OpenPricesProduct>(
         `${OPEN_PRICES_URL}/products/code/${encodeURIComponent(codigo)}`,
       );
+      // Código de barras não dispensa a validação do nome: nunca atribuir preço
+      // de um cadastro que não corresponde ao alimento reconhecido.
+      if (
+        produtoPorCodigo.product_name &&
+        scoreProductName(nome, produtoPorCodigo.product_name) === 1
+      ) {
+        return produtoPorCodigo;
+      }
     } catch {
       // Continue with name search; the barcode may not exist in Open Prices yet.
     }
@@ -304,10 +307,10 @@ async function buscarProdutoOpenPrices(nome: string, codigo?: string) {
     .filter((produto) => !!produto.code && !!produto.product_name)
     .map((produto) => ({
       ...produto,
-      score: similaridadeProduto(nome, produto.product_name ?? ""),
+      score: scoreProductName(nome, produto.product_name ?? ""),
     }))
     .sort((a, b) => b.score - a.score)[0];
-  return melhor && melhor.score >= 0.5 ? melhor : undefined;
+  return melhor && melhor.score === 1 ? melhor : undefined;
 }
 
 function nomeLocalOpenPrices(local?: OpenPricesLocation | null) {
@@ -369,7 +372,7 @@ async function consultarOpenPrices(
       currency: "BRL",
       type: "PRODUCT",
       "duplicate_of__isnull": "true",
-      "date__gte": new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      "date__gte": new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       size: "100",
       ordering: "-date",
     });
@@ -386,7 +389,7 @@ async function consultarOpenPrices(
       `${OPEN_PRICES_URL}/prices?${parametrosLocais.toString()}`,
     );
     let registros = (respostaLocal.items ?? []).filter(
-      (registro) => Number(registro.price) > 0 && (!registro.currency || registro.currency === "BRL"),
+      (registro) => Number(registro.price) > 0 && registro.currency === "BRL",
     );
 
     if (filtros?.mercado?.trim()) {
@@ -424,7 +427,7 @@ async function consultarOpenPrices(
         `${OPEN_PRICES_URL}/prices?${parametrosBase.toString()}`,
       );
       registros = (respostaAmpla.items ?? []).filter(
-        (registro) => Number(registro.price) > 0 && (!registro.currency || registro.currency === "BRL"),
+        (registro) => Number(registro.price) > 0 && registro.currency === "BRL",
       );
       abrangencia = "registros nacionais (não confirmados em uma filial)";
     }
@@ -482,10 +485,10 @@ export async function consultarPrecosObservados(
           )
           .map((candidate) => ({
             ...candidate,
-            score: similaridadeProduto(item.nome, candidate.product_name),
+            score: scoreProductName(item.nome, candidate.product_name),
           }))
           .sort((a, b) => b.score - a.score)[0];
-        if (produtoMelhor && produtoMelhor.score >= 0.25) {
+        if (produtoMelhor && produtoMelhor.score === 1) {
           dadosMelhor = await buscarJson<ProductResponse>(
             `${BASE_URL}/product/${encodeURIComponent(produtoMelhor.ean)}`,
           );
