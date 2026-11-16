@@ -134,10 +134,12 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       ? `${quantidade.toLocaleString("pt-BR")} ${quantidade === 1 ? "unidade detectada" : "unidades detectadas"}`
       : `≈ ${quantidade.toLocaleString("pt-BR")} ${unidade} (estimado)`;
 
-  // Compra = estoque ideal para o período (ideal × frequência) menos o que já foi confirmado na geladeira.
+  // A quantidade faltante do relatório é a base; a frequência multiplica essa falta.
+  // Ex.: faltam 4 ovos e a frequência é quinzenal (2x) => orçar 8 ovos.
   const quantidadeComprar = (linha: { faltam: number; detectado: number; item: ItemIdeal }) =>
-    Math.max(0, Math.round((linha.item.quantidade * frequencia - linha.detectado) * 100) / 100);
+    Math.max(0, Math.round(linha.faltam * frequencia * 100) / 100);
 
+  // O preço retornado pela consulta é unitário na unidade do estoque.
   const precoLinha = (linha: { faltam: number; detectado: number; item: ItemIdeal }) =>
     precoDe(linha.item.nome) * quantidadeComprar(linha);
 
