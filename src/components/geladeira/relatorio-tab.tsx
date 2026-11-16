@@ -704,7 +704,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Preços consultados no PreçoMelhor e no{" "}
+                Preços consultados no{" "}
+                <a
+                  href="https://www.precomelhor.com.br"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  PreçoMelhor
+                </a>{" "}e no{" "}
                 <a
                   href="https://prices.openfoodfacts.org/"
                   target="_blank"
