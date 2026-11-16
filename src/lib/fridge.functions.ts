@@ -247,6 +247,10 @@ export const buscarMercados = createServerFn({ method: "POST" })
           return {
             nome,
             endereco,
+            // Preserve the exact Geoapify branch coordinates so price lookups
+            // are centered on the selected supermarket, not the user's GPS point.
+            lat: p.lat,
+            lng: p.lon,
             distanciaKm: typeof p.distance === "number"
               ? Math.round((p.distance / 1000) * 10) / 10
               : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
