@@ -1000,6 +1000,7 @@ export async function consultarPrecosEmMercados(
   const consultas: Array<{
     loja: LojaConsulta;
     precos: Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"];
+    observacao: string;
   }> = [];
   // Limita a concorrência para não disparar dezenas de consultas simultâneas nas fontes gratuitas.
   let proxima = 0;
@@ -1017,9 +1018,19 @@ export async function consultarPrecosEmMercados(
             ? { coordenadas: { lat: loja.lat, lng: loja.lng } }
             : {}),
         });
-        consultas[indice] = { loja, precos: resultado.precos };
-      } catch {
-        consultas[indice] = { loja, precos: [] };
+        consultas[indice] = {
+          loja,
+          precos: resultado.precos,
+          observacao: resultado.observacao,
+        };
+      } catch (erro) {
+        const detalhe = erro instanceof Error ? erro.message : "Falha desconhecida na consulta.";
+        console.error("[precos] Falha ao consultar filial:", loja.nome, detalhe);
+        consultas[indice] = {
+          loja,
+          precos: [],
+          observacao: "Falha na filial " + loja.nome + ": " + detalhe,
+        };
       }
     }
   });
@@ -1124,7 +1135,13 @@ export async function consultarPrecosEmMercados(
   const totalRegional = precos.filter((preco) => preco.tipoPreco === "regional").length;
   const totalIea = precos.filter((preco) => preco.tipoPreco === "referência IEA").length;
   const totalNacional = precos.filter((preco) => preco.tipoPreco === "nacional").length;
-  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
+  const diagnosticosFonte = [...new Set(
+    consultas.map((consulta) => consulta.observacao).filter(Boolean),
+  )];
+  const observacao = [
+    `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`,
+    ...diagnosticosFonte,
+  ].join(" ");
   return { precos, observacao, dataColeta: maiorData };
 }
 
