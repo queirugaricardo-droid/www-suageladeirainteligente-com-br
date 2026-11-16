@@ -704,6 +704,255 @@ export async function consultarPrecosObservados(
   return { precos: resultados, observacao, dataColeta: dataMaisRecente ?? "" };
 }
 
+
+type IeaRow = {
+  produto: string;
+  mes: number;
+  ano: number;
+  preco: number;
+  unidade: string;
+};
+
+type IeaPrice = {
+  nome: string;
+  precoUnitario: number;
+  produto: string;
+  mercado: string;
+  atualizadoEm: string;
+  fonte: "IEA";
+};
+
+const IEA_URL = "https://infoiea.agricultura.sp.gov.br/nia1/precos_medios.aspx?cod_sis=4";
+const IEA_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const cacheIeaRows = new Map<string, { expiraEm: number; row: IeaRow }>();
+
+function produtoIeaParaItem(nome: string): string | undefined {
+  const n = normalizar(nome);
+
+  if (n.includes("arroz")) {
+    if (/\b(integral|parboilizado|parbolizado)\b/.test(n)) return undefined;
+    return "Arroz";
+  }
+  if (n.includes("leite condensado")) return "Leite Condensado";
+  if (n.includes("leite em po")) return "Leite em Po";
+  if (n.includes("leite")) return "Leite Longa Vida";
+  if (n.includes("feijao")) {
+    if (/\b(preto|carioca|fradinho|macacar)\b/.test(n)) return undefined;
+    return "Feijao";
+  }
+  if (n.includes("tomate")) return "Tomate de Mesa";
+  if (n.includes("banana prata")) return "Banana-Prata";
+  if (n.includes("banana nanica")) return "Banana-Nanica";
+  if (n.includes("banana maca")) return "Banana-Maca";
+  if (n.includes("banana")) return "Banana-Prata";
+  if (n.includes("batata doce")) return "Batata-Doce";
+  if (n.includes("batata")) return "Batata";
+  if (n.includes("cebola")) return "Cebola";
+  if (n.includes("cenoura")) return "Cenoura";
+  if (n.includes("alface")) return "Alface";
+  if (n.includes("abobrinha italiana")) return "Abobrinha Italiana";
+  if (n.includes("abobrinha")) return "Abobrinha Brasileira";
+  if (n.includes("abobora")) return "Abobora";
+  if (n.includes("brocolis")) return "Brócolis";
+  if (n.includes("couve flor")) return "Couve-Flor";
+  if (n.includes("couve")) return "Couve";
+  if (n.includes("espinafre")) return "Espinafre";
+  if (n.includes("beterraba")) return "Beterraba (kg)";
+  if (n.includes("pepino")) return "Pepino";
+  if (n.includes("pimentao")) return "Pimentao";
+  if (n.includes("repolho")) return "Repolho Verde";
+  if (n.includes("mandioca")) return "Mandioca de Mesa";
+  if (n.includes("limao")) return "Limao";
+  if (n.includes("laranja")) return "Laranja";
+  if (n.includes("abacate")) return "Abacate";
+  if (n.includes("abacaxi")) return "Abacaxi";
+  if (n.includes("maca")) return "Maça Nacional (kg)";
+  if (n.includes("manga")) return "Manga";
+  if (n.includes("morango")) return "Morango";
+  if (n.includes("melancia")) return "Melancia";
+  if (n.includes("melao")) return "Melao Amarelo";
+  if (n.includes("uva")) return "Uva Comum";
+  if (n.includes("ovos") || n === "ovo") return "Ovos";
+  if (n.includes("iogurte natural")) return "Iogurte Natural";
+  if (n.includes("queijo") && n.includes("mussarela")) return "Queijo-Tipo Mussarela";
+  if (n.includes("queijo") && n.includes("minas")) return "Queijo-Tipo Minas";
+  if (n.includes("manteiga")) return "Manteiga";
+  if (n.includes("margarina")) return "Margarina";
+  if (n.includes("cafe soluvel")) return "Cafe Soluvel";
+  if (n.includes("cafe")) return "Cafe em Po";
+  if (n.includes("oleo de soja")) return "Oleo de Soja";
+  if (n.includes("macarrao")) return "Macarrao";
+  if (n.includes("pao frances")) return "Pao Frances";
+  if (n.includes("pao de forma")) return "Pão de Forma";
+  if (n.includes("acém") || n.includes("acem")) return "Acém";
+  if (n.includes("patinho")) return "Patinho";
+  if (n.includes("alcatra")) return "Alcatra";
+  if (n.includes("file de frango")) return "Filé de Frango";
+  if (n.includes("peito de frango")) return "Peito de Frango";
+  if (n.includes("coxa de frango")) return "Coxa de Frango";
+  if (n.includes("sobrecoxa")) return "Sobrecoxa de Frango";
+  if (n.includes("frango")) return "Frango Limpo";
+  if (n.includes("carne bovina")) return "Carne Bovina";
+  if (n.includes("carne suina")) return "Carne Suina";
+  if (n.includes("linguica")) return "Linguica de Porco";
+  if (n.includes("bacon")) return "Bacon";
+  if (n.includes("mortadela")) return "Mortadela";
+  if (n.includes("presunto")) return "Presunto Cozido";
+  if (n.includes("salsicha")) return "Salsicha-Tipo Hot-dog";
+  return undefined;
+}
+
+function converterPrecoIea(preco: number, unidadeFonte: string, item: InputItem) {
+  const desejada = unidadeBase(item.unidade);
+  const origem = unidadeBase(unidadeFonte);
+  if (desejada && origem && desejada.tipo === origem.tipo) {
+    return preco * (item.quantidade * desejada.fator / origem.fator);
+  }
+
+  if (desejada?.tipo === "contagem" && normalizar(unidadeFonte).includes("duzia")) {
+    return (preco * item.quantidade) / 12;
+  }
+
+  // Para produtos embalados vendidos por kg/litro, converte somente quando
+  // o tamanho da embalagem estiver explícito no nome do item.
+  if (desejada?.tipo === "contagem" || normalizar(item.unidade) === "pacote") {
+    const tamanho = item.nome.match(/(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml)\b/i);
+    if (!tamanho) return undefined;
+    const quantidadePacote = Number(tamanho[1].replace(",", "."));
+    const unidadePacote = unidadeBase(tamanho[2]);
+    if (!unidadePacote || !origem || unidadePacote.tipo !== origem.tipo) return undefined;
+    return preco * quantidadePacote * unidadePacote.fator / origem.fator * item.quantidade;
+  }
+
+  return undefined;
+}
+
+function decodificarHtml(valor: string) {
+  return valor
+    .replace(/<[^>]*>/g, "")
+    .replace(/&#(\d+);/g, (_match, numero: string) => String.fromCodePoint(Number(numero)))
+    .replace(/&#x([\da-f]+);/gi, (_match, numero: string) => String.fromCodePoint(parseInt(numero, 16)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .trim();
+}
+
+async function consultarPrecosIea(itens: InputItem[], local?: string): Promise<Map<string, IeaPrice>> {
+  const resultado = new Map<string, IeaPrice>();
+  // A pesquisa do IEA é uma média de varejo da cidade de São Paulo.
+  // Não a aplicamos a outras cidades nem a apresentamos como preço de uma filial.
+  if (!local || !normalizar(local).includes("sao paulo")) return resultado;
+
+  const mapeados = itens
+    .map((item) => ({ item, produtoIea: produtoIeaParaItem(item.nome) }))
+    .filter((registro): registro is { item: InputItem; produtoIea: string } => !!registro.produtoIea);
+  if (mapeados.length === 0) return resultado;
+
+  const agora = Date.now();
+  const produtosPendentes = [...new Set(mapeados.map((registro) => registro.produtoIea))].filter((produto) => {
+    const cache = cacheIeaRows.get(normalizar(produto));
+    return !cache || cache.expiraEm <= agora;
+  });
+
+  if (produtosPendentes.length > 0) {
+    try {
+      const pagina = await fetch(IEA_URL, {
+        headers: { Accept: "text/html", "User-Agent": "SuaGeladeiraInteligente/1.0 (+https://suageladeirainteligente.com.br)" },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!pagina.ok) throw new Error("IEA indisponível.");
+      const html = await pagina.text();
+      const formulario = new URLSearchParams();
+
+      for (const correspondencia of html.matchAll(/<input[^>]*type="hidden"[^>]*>/gi)) {
+        const tag = correspondencia[0];
+        const nome = tag.match(/name="([^"]+)"/i)?.[1];
+        const valor = tag.match(/value="([^"]*)"/i)?.[1] ?? "";
+        if (nome) formulario.set(nome, valor);
+      }
+
+      const opcoesPeriodo = (nome: string) => {
+        const select = html.match(new RegExp('<select[^>]*name="' + nome + '"[^>]*>([\\s\\S]*?)</select>', "i"))?.[1] ?? "";
+        return [...select.matchAll(/<option[^>]*value="([^"]+)"[^>]*>/gi)].map((opcao) => opcao[1]);
+      };
+      const periodosIniciais = opcoesPeriodo("cmbPeriodo_Inicial");
+      const periodosFinais = opcoesPeriodo("cmbPeriodo_Final");
+      const periodoInicial = periodosIniciais[0];
+      const periodoFinal = periodosFinais.at(-1);
+      if (!periodoInicial || !periodoFinal) throw new Error("Períodos do IEA indisponíveis.");
+
+      formulario.set("cmbPeriodo_Inicial", periodoInicial);
+      formulario.set("cmbPeriodo_Final", periodoFinal);
+
+      const indicesProdutos = new Map<string, string>();
+      for (const correspondencia of html.matchAll(/<input id="chkLstItens_(\d+)" type="checkbox" name="chkLstItens\$(\d+)"\s*\/>\s*<label for="chkLstItens_\d+">([^<]+)<\/label>/gi)) {
+        indicesProdutos.set(normalizar(decodificarHtml(correspondencia[3] ?? "")), correspondencia[2] ?? correspondencia[1] ?? "");
+      }
+      for (const produto of produtosPendentes) {
+        const indice = indicesProdutos.get(normalizar(produto));
+        if (indice) formulario.set("chkLstItens$" + indice, "on");
+      }
+      formulario.set("imgPesquisar", "Pesquisar");
+
+      const resposta = await fetch(IEA_URL, {
+        method: "POST",
+        headers: {
+          Accept: "text/html",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          Origin: "https://infoiea.agricultura.sp.gov.br",
+          Referer: IEA_URL,
+          "User-Agent": "SuaGeladeiraInteligente/1.0 (+https://suageladeirainteligente.com.br)",
+        },
+        body: formulario.toString(),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!resposta.ok) throw new Error("Consulta de preços do IEA indisponível.");
+      const resultadoHtml = await resposta.text();
+      const tabela = resultadoHtml.match(/<table[^>]*id="Grid"[^>]*>[\s\S]*?<\/table>/i)?.[0] ?? "";
+      const linhas = [...tabela.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
+        .map((linha) => [...(linha[1] ?? "").matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((celula) => decodificarHtml(celula[1] ?? "")))
+        .filter((colunas) => colunas.length >= 6);
+
+      for (const produto of produtosPendentes) {
+        const linha = linhas
+          .filter((colunas) => normalizar(colunas[0] ?? "") === normalizar(produto))
+          .map((colunas) => ({
+            produto: colunas[0] ?? produto,
+            mes: Number(colunas[1]),
+            ano: Number(colunas[2]),
+            preco: Number((colunas[4] ?? "").replace(/\./g, "").replace(",", ".")),
+            unidade: colunas[5] ?? "",
+          }))
+          .filter((registro) => registro.mes >= 1 && registro.mes <= 12 && registro.ano >= 2000 && registro.preco > 0)
+          .sort((a, b) => a.ano * 100 + a.mes - (b.ano * 100 + b.mes))
+          .at(-1);
+        if (linha) cacheIeaRows.set(normalizar(produto), { expiraEm: agora + IEA_CACHE_TTL_MS, row: linha });
+      }
+    } catch {
+      // A fonte pública é complementar; uma indisponibilidade não interrompe as demais.
+    }
+  }
+
+  for (const { item, produtoIea } of mapeados) {
+    const linha = cacheIeaRows.get(normalizar(produtoIea))?.row;
+    if (!linha) continue;
+    const preco = converterPrecoIea(linha.preco, linha.unidade, item);
+    if (!preco || !Number.isFinite(preco) || preco <= 0) continue;
+    const mesAno = String(linha.mes).padStart(2, "0") + "/" + linha.ano;
+    resultado.set(item.nome, {
+      nome: item.nome,
+      precoUnitario: Math.round(preco * 100) / 100,
+      produto: linha.produto + " (média genérica de varejo, sem marca)",
+      mercado: "IEA — média do varejo da cidade de São Paulo (" + mesAno + "); não é preço da filial",
+      atualizadoEm: String(linha.ano) + "-" + String(linha.mes).padStart(2, "0") + "-01",
+      fonte: "IEA",
+    });
+  }
+  return resultado;
+}
+
 type LojaConsulta = { nome: string; lat?: number | undefined; lng?: number | undefined };
 
 /** Consulta cada filial encontrada e calcula a média apenas dos preços observados compatíveis. */
@@ -798,6 +1047,15 @@ export async function consultarPrecosEmMercados(
   }));
   for (const resultado of resultadosNacionais) if (resultado) precosNacionais.set(resultado[0], resultado[1]);
 
+  // Complementa os dados comunitários com a média oficial de varejo do IEA,
+  // somente para usuários em São Paulo e quando não existe preço local observado.
+  const itensSemPrecoParaIea = itens.filter((item) =>
+    !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)) &&
+    !precosRegionais.has(item.nome),
+  );
+  const precosIea = await consultarPrecosIea(itensSemPrecoParaIea, filtros.local);
+  for (const [nome, registro] of precosIea) precosRegionais.set(nome, registro);
+
   const precos = itens.map((item) => {
     const encontrados = consultas.flatMap(({ loja, precos: lista }) => {
       const preco = lista.find(
@@ -813,6 +1071,7 @@ export async function consultarPrecosEmMercados(
       : (regional?.precoUnitario ?? nacional?.precoUnitario ?? 0);
     const datas = encontrados.map((registro) => registro.atualizadoEm ?? "").filter(Boolean).sort();
     const usarRegional = encontrados.length === 0 && regional !== undefined;
+    const usarIea = usarRegional && regional.fonte === "IEA";
     const usarNacional = encontrados.length === 0 && !usarRegional && nacional !== undefined;
     return {
       nome: item.nome,
@@ -820,28 +1079,31 @@ export async function consultarPrecosEmMercados(
       produto: encontrados[0]?.produto ?? regional?.produto ?? nacional?.produto ?? "",
       mercado: encontrados.length
         ? `Média de ${encontrados.length} mercado(s)`
-        : usarRegional
-          ? `${regional.mercado} (preço regional)`
-          : usarNacional
-            ? `${nacional.mercado} (referência nacional, não é preço da filial)`
-            : "",
+        : usarIea
+          ? regional.mercado
+          : usarRegional
+            ? `${regional.mercado} (preço regional)`
+            : usarNacional
+              ? `${nacional.mercado} (referência nacional, não é preço da filial)`
+              : "",
       atualizadoEm: datas.at(-1) ?? regional?.atualizadoEm ?? nacional?.atualizadoEm ?? "",
       mercadosConsultados: encontrados.length
         ? encontrados.map((registro) => registro.loja)
         : usarRegional
-          ? [`${regional.mercado} (preço regional)`]
+          ? [regional.mercado]
           : usarNacional
             ? [`${nacional.mercado} (referência nacional)`]
             : [],
       quantidadeMercados: encontrados.length || (usarRegional || usarNacional ? 1 : 0),
-      tipoPreco: encontrados.length ? "filiais selecionadas" : usarRegional ? "regional" : usarNacional ? "nacional" : "indisponível",
+      tipoPreco: encontrados.length ? "filiais selecionadas" : usarIea ? "referência IEA" : usarRegional ? "regional" : usarNacional ? "nacional" : "indisponível",
     };
   });
 
   const totalComPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
   const maiorData = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
   const totalRegional = precos.filter((preco) => preco.tipoPreco === "regional").length;
+  const totalIea = precos.filter((preco) => preco.tipoPreco === "referência IEA").length;
   const totalNacional = precos.filter((preco) => preco.tipoPreco === "nacional").length;
-  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional e, por último, uma referência nacional nas fontes públicas. Preços regionais e nacionais mostram sua abrangência e nunca são atribuídos à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is) e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
+  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
   return { precos, observacao, dataColeta: maiorData };
 }
