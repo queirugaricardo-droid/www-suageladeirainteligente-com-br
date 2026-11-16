@@ -167,8 +167,7 @@ export const estimarPrecos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const { consultarPrecosObservados, consultarPrecosEmMercados } =
-        await import("./market-prices.server");
+      const { consultarMediaRegional } = await import("./market-prices.server");
       const filtros = {
         ...(data.mercado ? { mercado: data.mercado } : {}),
         ...(data.local ? { local: data.local } : {}),
@@ -176,15 +175,11 @@ export const estimarPrecos = createServerFn({ method: "POST" })
           ? { coordenadas: { lat: data.lat, lng: data.lng } }
           : {}),
       };
-      const resultado = data.mercado
-        ? await consultarPrecosObservados(data.itens, filtros)
-        : data.lojas?.length || data.lat !== undefined || data.local?.trim()
-          ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas ?? [])
-          : await consultarPrecosObservados(data.itens, filtros);
+      const resultado = await consultarMediaRegional(data.itens, filtros);
       return {
         ok: true as const,
         ...resultado,
-        local: data.lat !== undefined ? (data.local?.trim() ?? "") : "",
+        local: data.local?.trim() ?? "",
       };
     } catch (e) {
       const erro =
@@ -318,6 +313,56 @@ async function buscarMercadosOpenStreetMap(lat: number, lng: number) {
     };
   }
 }
+
+
+export const resolverLocalizacao = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z.object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+    }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    try {
+      const params = new URLSearchParams({
+        lat: String(data.lat),
+        lon: String(data.lng),
+        format: "jsonv2",
+        addressdetails: "1",
+        zoom: "10",
+      });
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?${params.toString()}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "SuaGeladeiraInteligente/1.0 (+https://suageladeirainteligente.com.br)",
+          },
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      if (!response.ok) throw new Error("Serviço de localização indisponível.");
+      const json = (await response.json()) as {
+        address?: {
+          city?: string;
+          town?: string;
+          village?: string;
+          municipality?: string;
+          state?: string;
+        };
+      };
+      const address = json.address ?? {};
+      const cidade = address.city ?? address.town ?? address.village ?? address.municipality;
+      if (!cidade) return { ok: false as const, local: "", erro: "Não consegui identificar a cidade pelas coordenadas." };
+      return {
+        ok: true as const,
+        local: [cidade, address.state].filter(Boolean).join(", "),
+        erro: "",
+      };
+    } catch {
+      return { ok: false as const, local: "", erro: "Não consegui consultar a localização. Digite sua cidade ou CEP." };
+    }
+  });
 
 export const buscarMercados = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
