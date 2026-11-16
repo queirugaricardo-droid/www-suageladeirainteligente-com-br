@@ -779,6 +779,25 @@ export async function consultarPrecosEmMercados(
     for (const resultado of resultadosRegionais) if (resultado) precosRegionais.set(resultado[0], resultado[1]);
   }
 
+  // Terceira etapa: se não houver observação nas filiais nem na região,
+  // consulta os preços públicos disponíveis em todo o Brasil. A origem é
+  // identificada como nacional e nunca é apresentada como preço da loja local.
+  const precosNacionais = new Map<string, Awaited<ReturnType<typeof consultarPrecosObservados>>["precos"][number]>();
+  const itensSemPrecoLocal = itens.filter((item) =>
+    !consultas.some(({ precos: lista }) => lista.some((registro) => registro.nome === item.nome && registro.precoUnitario > 0)) &&
+    !precosRegionais.has(item.nome),
+  );
+  const resultadosNacionais = await Promise.all(itensSemPrecoLocal.map(async (item) => {
+    try {
+      const nacional = await consultarPrecosObservados([item], {});
+      const registro = nacional.precos.find((preco) => preco.precoUnitario > 0 && preco.mercado.trim());
+      return registro ? [item.nome, registro] as const : null;
+    } catch {
+      return null;
+    }
+  }));
+  for (const resultado of resultadosNacionais) if (resultado) precosNacionais.set(resultado[0], resultado[1]);
+
   const precos = itens.map((item) => {
     const encontrados = consultas.flatMap(({ loja, precos: lista }) => {
       const preco = lista.find(
@@ -787,25 +806,42 @@ export async function consultarPrecosEmMercados(
       return preco ? [{ ...preco, loja: loja.nome }] : [];
     });
     const regional = precosRegionais.get(item.nome);
+    const nacional = precosNacionais.get(item.nome);
     const valores = encontrados.map((registro) => registro.precoUnitario);
-    const media = encontrados.length ? calcularMediaPrecos(valores) : (regional?.precoUnitario ?? 0);
+    const precoCalculado = encontrados.length
+      ? calcularMediaPrecos(valores)
+      : (regional?.precoUnitario ?? nacional?.precoUnitario ?? 0);
     const datas = encontrados.map((registro) => registro.atualizadoEm ?? "").filter(Boolean).sort();
     const usarRegional = encontrados.length === 0 && regional !== undefined;
+    const usarNacional = encontrados.length === 0 && !usarRegional && nacional !== undefined;
     return {
       nome: item.nome,
-      precoUnitario: media,
-      produto: encontrados[0]?.produto ?? regional?.produto ?? "",
-      mercado: encontrados.length ? `Média de ${encontrados.length} mercado(s)` : (usarRegional ? `${regional.mercado} (preço regional)` : ""),
-      atualizadoEm: datas.at(-1) ?? regional?.atualizadoEm ?? "",
-      mercadosConsultados: encontrados.length ? encontrados.map((registro) => registro.loja) : (usarRegional ? [`${regional.mercado} (preço regional)`] : []),
-      quantidadeMercados: encontrados.length || (usarRegional ? 1 : 0),
-      tipoPreco: encontrados.length ? "filiais selecionadas" : (usarRegional ? "regional" : "indisponível"),
+      precoUnitario: precoCalculado,
+      produto: encontrados[0]?.produto ?? regional?.produto ?? nacional?.produto ?? "",
+      mercado: encontrados.length
+        ? `Média de ${encontrados.length} mercado(s)`
+        : usarRegional
+          ? `${regional.mercado} (preço regional)`
+          : usarNacional
+            ? `${nacional.mercado} (referência nacional, não é preço da filial)`
+            : "",
+      atualizadoEm: datas.at(-1) ?? regional?.atualizadoEm ?? nacional?.atualizadoEm ?? "",
+      mercadosConsultados: encontrados.length
+        ? encontrados.map((registro) => registro.loja)
+        : usarRegional
+          ? [`${regional.mercado} (preço regional)`]
+          : usarNacional
+            ? [`${nacional.mercado} (referência nacional)`]
+            : [],
+      quantidadeMercados: encontrados.length || (usarRegional || usarNacional ? 1 : 0),
+      tipoPreco: encontrados.length ? "filiais selecionadas" : usarRegional ? "regional" : usarNacional ? "nacional" : "indisponível",
     };
   });
 
   const totalComPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
   const maiorData = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
   const totalRegional = precos.filter((preco) => preco.tipoPreco === "regional").length;
-  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita uma segunda busca regional. Preços regionais mostram o estabelecimento de origem e não são atribuídos à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço, sendo ${totalRegional} regionais. Produtos sem registro continuam sem preço.`;
+  const totalNacional = precos.filter((preco) => preco.tipoPreco === "nacional").length;
+  const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional e, por último, uma referência nacional nas fontes públicas. Preços regionais e nacionais mostram sua abrangência e nunca são atribuídos à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is) e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
   return { precos, observacao, dataColeta: maiorData };
 }
