@@ -178,12 +178,8 @@ function ofertaDaLoja(
     // somente uma loja cadastrada muito próxima da filial selecionada.
     if (porNome.length > 0) {
       disponiveis = porNome;
-    } else if (coordenadas) {
-      disponiveis = disponiveis.filter((oferta) => {
-        const ponto = coordenadasDaLoja(oferta.store_coords);
-        return !!ponto && distanciaKm(coordenadas, ponto) <= 1.5;
-      });
     } else {
+      // Mercado selecionado: não atribuir preço de outra filial por proximidade.
       disponiveis = [];
     }
   } else if (coordenadas) {
@@ -366,14 +362,8 @@ async function consultarOpenPrices(
       });
       if (porNome.length > 0) {
         registros = porNome;
-      } else if (filtros.coordenadas) {
-        registros = registros.filter((registro) => {
-          const lat = Number(registro.location?.osm_lat);
-          const lng = Number(registro.location?.osm_lon);
-          return Number.isFinite(lat) && Number.isFinite(lng) &&
-            distanciaKm(filtros.coordenadas!, { lat, lng }) <= 1.5;
-        });
       } else {
+        // Mercado selecionado sem correspondência pelo nome: não usar outra filial.
         registros = [];
       }
     } else if (!filtros?.coordenadas && filtros?.local?.trim()) {

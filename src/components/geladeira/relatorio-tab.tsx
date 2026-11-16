@@ -60,6 +60,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [localManual, setLocalManual] = useState("");
   const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
   const [lojas, setLojas] = useState<Loja[]>([]);
+  const [mercadoSelecionado, setMercadoSelecionado] = useState<Loja | null>(null);
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
@@ -206,7 +207,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           } catch {
             setAvisoLocal("Não consegui listar os mercados próximos. Vou consultar os preços da região.");
           }
-          await calcularPrecos(undefined, localizacao, localizacaoTexto);
+          setPrecos([]);
+          setObservacao("");
+          setMercadoSelecionado(null);
         } finally {
           setCarregandoLocal(false);
         }
@@ -232,6 +235,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       return;
     }
     setCarregandoPrecos(true);
+    setPrecos([]);
+    setObservacao("");
     try {
       const resposta = await orcar({
         data: {
@@ -544,7 +549,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
           {local && (
             <p className="text-sm text-muted-foreground">
-              Região considerada: <span className="text-foreground">{local}</span>
+              Mercados encontrados perto de: <span className="text-foreground">{local}</span>
             </p>
           )}
 
@@ -556,6 +561,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           )}
 
           {lojas.length > 0 && (
+            <>
+            <p className="text-sm font-medium">Escolha um mercado para consultar os preços dos produtos:</p>
             <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               {lojas.map((loja) => (
                 <div
@@ -575,21 +582,30 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                     className="shrink-0 px-2"
                     size="sm"
                     variant="ghost"
-                    onClick={() => calcularPrecos(
-                      loja.nome,
-                      loja.lat !== undefined && loja.lng !== undefined
-                        ? { lat: loja.lat, lng: loja.lng }
-                        : coordenadas,
-                    )}
+                    onClick={() => {
+                      setMercadoSelecionado(loja);
+                      calcularPrecos(
+                        loja.nome,
+                        loja.lat !== undefined && loja.lng !== undefined
+                          ? { lat: loja.lat, lng: loja.lng }
+                          : coordenadas,
+                      );
+                    }}
                     disabled={carregandoPrecos}
                   >
-                    Comparar
+                    Ver preços
                   </Button>
                 </div>
               ))}
             </div>
+            </>
           )}
 
+          {mercadoSelecionado && (
+            <p className="text-sm text-muted-foreground">
+              Preços da lista para: <span className="font-semibold text-foreground">{mercadoSelecionado.nome}</span>
+            </p>
+          )}
           {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
         </CardContent>
       </Card>
@@ -688,7 +704,15 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Preços consultados no PreçoMelhor e no{" "}
+                Preços consultados no{" "}
+                <a
+                  href="https://www.precomelhor.com.br"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  PreçoMelhor
+                </a>{" "}e no{" "}
                 <a
                   href="https://prices.openfoodfacts.org/"
                   target="_blank"
