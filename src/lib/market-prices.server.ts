@@ -379,9 +379,9 @@ function valorDoRegistroOpenPrices(
 
   const desejada = unidadeBase(item.unidade);
   if (registro.price_per === "KILOGRAM" && desejada?.tipo === "massa")
-    return valor * (item.quantidade * desejada.fator / 1000);
+    return valor * (desejada.fator / 1000);
   if (registro.price_per === "LITER" && desejada?.tipo === "volume")
-    return valor * (item.quantidade * desejada.fator / 1000);
+    return valor * (desejada.fator / 1000);
   if (registro.price_per === "UNIT" || desejada?.tipo === "contagem")
     return valor * item.quantidade;
 
@@ -516,9 +516,11 @@ async function consultarOpenPrices(
       atualizadoEm: datas.at(-1) ?? "",
       fonte: "Open Prices",
     };
-  } catch {
-    // This is a complementary public dataset; failures must not disable PreçoMelhor.
-    return null;
+  } catch (erro) {
+    // Preserve the primary source: record a safe diagnostic instead of hiding the failure.
+    const mensagem = erro instanceof Error ? erro.message : "Falha inesperada no Open Prices.";
+    console.warn("[precos] Open Prices indisponível:", mensagem);
+    return { erroConsulta: mensagem };
   }
 }
 
@@ -670,7 +672,9 @@ export async function consultarPrecosObservados(
         produtoMelhor?.ean,
         { ...filtros, ...(localResolvido ? { local: localResolvido } : {}) },
       );
-      if (precoOpenPrices) {
+      if (precoOpenPrices && "erroConsulta" in precoOpenPrices) {
+        console.warn("[precos] Sem resultado no Open Prices para", item.nome, precoOpenPrices.erroConsulta);
+      } else if (precoOpenPrices) {
         return {
           ...precoOpenPrices,
           ...(erroPrecoMelhor
