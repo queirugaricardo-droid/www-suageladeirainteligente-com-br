@@ -11,6 +11,7 @@ type SearchProduct = {
 
 type ProductResponse = {
   product?: {
+    product_name?: string;
     normalized_value?: number;
     normalized_unit?: string;
     units_per_pack?: number;
@@ -533,6 +534,7 @@ export async function consultarPrecosObservados(
       let produtoMelhor: (SearchProduct & { ean: string; product_name: string; score: number }) | undefined;
       let dadosMelhor: ProductResponse | undefined;
       let ofertasMelhor: NonNullable<ProductResponse["prices"]> = [];
+      let erroPrecoMelhor = "";
 
       // PreçoMelhor é gratuito e permite consultar os preços por filial.
       // Se a busca completa não encontrar preço local, tenta também os termos
@@ -599,8 +601,10 @@ export async function consultarPrecosObservados(
           }
           if (ofertasMelhor.length > 0) break;
         }
-      } catch {
-        // Open Prices is still queried even if PreçoMelhor is temporarily unavailable.
+      } catch (erro) {
+        erroPrecoMelhor =
+          erro instanceof Error ? erro.message : "Falha inesperada ao consultar PreçoMelhor.";
+        // A falha da fonte prioritária fica registrada; Open Prices só entra como complemento.
       }
 
       // Prioriza a variante que realmente possui oferta compatível com a filial.
@@ -665,7 +669,14 @@ export async function consultarPrecosObservados(
         produtoMelhor?.ean,
         { ...filtros, ...(localResolvido ? { local: localResolvido } : {}) },
       );
-      if (precoOpenPrices) return precoOpenPrices;
+      if (precoOpenPrices) {
+        return {
+          ...precoOpenPrices,
+          ...(erroPrecoMelhor
+            ? { avisoFontePrincipal: "PreçoMelhor indisponível nesta consulta: " + erroPrecoMelhor }
+            : { avisoFontePrincipal: "PreçoMelhor foi consultado primeiro, mas não encontrou oferta compatível; usado Open Prices como complemento." }),
+        };
+      }
 
       return {
         nome: item.nome,
@@ -674,6 +685,9 @@ export async function consultarPrecosObservados(
         mercado: "",
         atualizadoEm: "",
         fonte: "",
+        ...(erroPrecoMelhor
+          ? { avisoFontePrincipal: "PreçoMelhor indisponível nesta consulta: " + erroPrecoMelhor }
+          : { avisoFontePrincipal: "PreçoMelhor foi consultado primeiro e não encontrou oferta compatível." }),
       };
     }),
   );
@@ -692,8 +706,14 @@ export async function consultarPrecosObservados(
         ? `ofertas associadas a ${localResolvido}`
         : "média das ofertas disponíveis no Brasil";
   const fontes = [...new Set(resultados.map((resultado) => resultado.fonte).filter(Boolean))];
+  const avisosPrecoMelhor = [...new Set(
+    resultados
+      .map((resultado) => "avisoFontePrincipal" in resultado ? resultado.avisoFontePrincipal : "")
+      .filter(Boolean),
+  )];
   const observacao = [
-    `Preços observados em ${escopo}. Fontes consultadas: ${fontes.length ? fontes.join(" e ") : "PreçoMelhor e Open Prices"}.`,
+    `PreçoMelhor é a fonte prioritária: é consultado primeiro para cada produto. Open Prices só é usado como complemento quando não há oferta compatível no PreçoMelhor. Preços observados em ${escopo}. Fontes com preços encontrados: ${fontes.length ? fontes.join(" e ") : "nenhuma"}.`,
+    ...avisosPrecoMelhor,
     dataMaisRecente ? `Registro mais recente entre os itens: ${dataMaisRecente.slice(0, 10)}.` : "",
     semPreco ? `${semPreco} item(ns) sem preço compatível nesta consulta.` : "",
     "Open Prices reúne registros comunitários e pode não cobrir todos os produtos ou mercados; preços online também podem diferir dos praticados na filial física.",
