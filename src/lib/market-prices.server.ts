@@ -243,7 +243,7 @@ export async function consultarPrecosObservados(
         const precoPacote = media(valores);
         const preco = mediaUnidade(
           precoPacote,
-          item.quantidade,
+          1,
           item.unidade,
           dados.product?.normalized_value,
           dados.product?.normalized_unit,
@@ -294,5 +294,10 @@ export async function consultarPrecosObservados(
     .filter(Boolean)
     .join(" ");
 
-  return { precos: resultados, observacao, dataColeta: dataMaisRecente ?? "" };
+  return {
+    precos: resultados,
+    observacao,
+    dataColeta: dataMaisRecente ?? "",
+    local: localResolvido ?? "",
+  };
 }
