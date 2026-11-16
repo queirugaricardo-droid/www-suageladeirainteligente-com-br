@@ -6,7 +6,10 @@ import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
 function extrairJson(texto: string) {
-  const limpo = texto.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const limpo = texto
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
   const inicio = limpo.indexOf("{");
   const fim = limpo.lastIndexOf("}");
   if (inicio === -1 || fim === -1) throw new Error("Não consegui interpretar a resposta da IA.");
@@ -15,8 +18,10 @@ function extrairJson(texto: string) {
 
 function erroAmigavel(e: unknown) {
   const texto = e instanceof Error ? e.message : String(e);
-  if (texto.includes("402")) return "Os créditos de IA do app acabaram. Adicione créditos para continuar.";
-  if (texto.includes("429")) return "Muitas análises seguidas. Espere alguns segundos e tente de novo.";
+  if (texto.includes("402"))
+    return "Os créditos de IA do app acabaram. Adicione créditos para continuar.";
+  if (texto.includes("429"))
+    return "Muitas análises seguidas. Espere alguns segundos e tente de novo.";
   if (texto.includes("403")) return "O uso de IA está bloqueado nas configurações do app.";
   return texto || "Não foi possível concluir a análise.";
 }
@@ -28,39 +33,42 @@ export const analisarFoto = createServerFn({ method: "POST" })
     try {
       const sb = context.supabase;
       const messages = [
-          {
-            role: "user" as const,
-            content: [
-              {
-                type: "text" as const,
-                text: [
-                  "Você é um inspetor visual meticuloso de geladeiras abertas.",
-                  data.imagens.length > 1
-                    ? `Você recebeu ${data.imagens.length} fotos da MESMA geladeira, de ângulos diferentes. Analise todas juntas e consolide os itens sem duplicar o mesmo alimento visto em mais de uma foto.`
-                    : "",
-                  "Faça uma varredura sistemática por zonas antes de responder: (1) porta e compartimentos da porta, (2) prateleiras superiores, (3) prateleiras centrais, (4) prateleiras inferiores, (5) gavetas de hortifrúti e áreas parcialmente visíveis.",
-                  "Liste TODOS os alimentos e bebidas realmente visíveis, em português do Brasil, agrupando aparições do mesmo alimento.",
-                  "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
-                  "Separe identificação de quantidade: você NÃO consegue medir peso nem volume exatos por foto. Para líquidos, carnes, queijos, frutas a granel e produtos parcialmente consumidos, prefira contar embalagens/unidades (un ou pacote); se precisar usar g, kg, ml ou L, dê uma estimativa conservadora e marque \"estimado\": true.",
-                  "Use \"confianca\" de 0 a 1 de forma honesta: abaixo de 0.9 quando o alimento estiver parcialmente encoberto, com rótulo ilegível ou quando houver dúvida sobre o que é.",
-                  "Para identificar cada alimento com precisão: leia rótulos, marcas e textos visíveis nas embalagens; use formato, cor, textura, tampa e tipo de embalagem como pistas (ex.: caixa longa vida = leite ou suco, pote branco pequeno = iogurte ou requeijão); diferencie itens parecidos (leite x iogurte líquido, queijo x manteiga, tomate x pimentão, limão x lima) e, se não der para distinguir, use o nome mais genérico correto (ex.: \"Pote de laticínio\", \"Garrafa de bebida\") com confiança abaixo de 0.7.",
-                  "Ignore objetos que não são alimento (potes vazios, utensílios, ímãs, partes da geladeira). Não liste o mesmo item duas vezes.",
-                  "Conte SOMENTE unidades que você realmente enxerga; não deduza unidades escondidas pelo tamanho da embalagem ou bandeja. Se houver chance de unidades encobertas, informe só as visíveis e use confiança abaixo de 0.9.",
-                  "Antes de responder, revise mentalmente a lista final: confirme que cada item está realmente visível e que a contagem confere com a imagem.",
-                  "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
-                  'Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.',
-                  'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
-                  "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
-                ].join(" "),
-              },
-              ...data.imagens.map((imagem) => ({ type: "image" as const, image: imagem })),
-            ],
-          },
-        ];
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "text" as const,
+              text: [
+                "Você é um inspetor visual meticuloso de geladeiras abertas.",
+                data.imagens.length > 1
+                  ? `Você recebeu ${data.imagens.length} fotos da MESMA geladeira, de ângulos diferentes. Analise todas juntas e consolide os itens sem duplicar o mesmo alimento visto em mais de uma foto.`
+                  : "",
+                "Faça uma varredura sistemática por zonas antes de responder: (1) porta e compartimentos da porta, (2) prateleiras superiores, (3) prateleiras centrais, (4) prateleiras inferiores, (5) gavetas de hortifrúti e áreas parcialmente visíveis.",
+                "Liste TODOS os alimentos e bebidas realmente visíveis, em português do Brasil, agrupando aparições do mesmo alimento.",
+                "Para itens discretos, conte cuidadosamente cada unidade visível — especialmente ovos, tomates, maçãs, latas, potes e garrafas — sem estimar por embalagem quando as unidades puderem ser vistas.",
+                'Separe identificação de quantidade: você NÃO consegue medir peso nem volume exatos por foto. Para líquidos, carnes, queijos, frutas a granel e produtos parcialmente consumidos, prefira contar embalagens/unidades (un ou pacote); se precisar usar g, kg, ml ou L, dê uma estimativa conservadora e marque "estimado": true.',
+                'Use "confianca" de 0 a 1 de forma honesta: abaixo de 0.9 quando o alimento estiver parcialmente encoberto, com rótulo ilegível ou quando houver dúvida sobre o que é.',
+                'Para identificar cada alimento com precisão: leia rótulos, marcas e textos visíveis nas embalagens; use formato, cor, textura, tampa e tipo de embalagem como pistas (ex.: caixa longa vida = leite ou suco, pote branco pequeno = iogurte ou requeijão); diferencie itens parecidos (leite x iogurte líquido, queijo x manteiga, tomate x pimentão, limão x lima) e, se não der para distinguir, use o nome mais genérico correto (ex.: "Pote de laticínio", "Garrafa de bebida") com confiança abaixo de 0.7.',
+                "Ignore objetos que não são alimento (potes vazios, utensílios, ímãs, partes da geladeira). Não liste o mesmo item duas vezes.",
+                "Conte SOMENTE unidades que você realmente enxerga; não deduza unidades escondidas pelo tamanho da embalagem ou bandeja. Se houver chance de unidades encobertas, informe só as visíveis e use confiança abaixo de 0.9.",
+                "Antes de responder, revise mentalmente a lista final: confirme que cada item está realmente visível e que a contagem confere com a imagem.",
+                "Associe a cada alimento exatamente um emoji Unicode representativo e específico.",
+                "Classifique cada item em exatamente uma categoria: Frutas, Verduras e legumes, Laticínios, Bebidas, Carnes, Ovos ou Outros.",
+                'Responda APENAS com JSON no formato: {"itens":[{"nome":"Tomates","quantidade":5,"unidade":"un","estimado":false,"confianca":0.8,"emoji":"🍅","categoria":"Verduras e legumes"}]}.',
+                "Unidades permitidas: un, kg, g, L, ml, pacote. Não invente itens ocultos, encobertos ou que não estejam visíveis.",
+              ].join(" "),
+            },
+            ...data.imagens.map((imagem) => ({ type: "image" as const, image: imagem })),
+          ],
+        },
+      ];
       const geminiKey = chaveGemini(process.env["GEMINI_API_KEY"]);
-      if (!geminiKey) throw new Error("A análise de fotos não está configurada. Defina GEMINI_API_KEY no servidor.");
+      if (!geminiKey)
+        throw new Error(
+          "A análise de fotos não está configurada. Defina GEMINI_API_KEY no servidor.",
+        );
       const { gerarJsonGemini } = await import("./gemini.server");
-      const prompt = messages[0]?.content.find(part => part.type === "text");
+      const prompt = messages[0]?.content.find((part) => part.type === "text");
       const texto = await gerarJsonGemini(
         geminiKey,
         prompt?.type === "text" ? prompt.text : "",
@@ -68,14 +76,22 @@ export const analisarFoto = createServerFn({ method: "POST" })
         "gemini-3.5-flash",
       );
       const json = extrairJson(texto) as {
-          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
+        itens?: Array<{
+          nome?: string;
+          quantidade?: number;
+          unidade?: string;
+          estimado?: boolean;
+          confianca?: number;
+          emoji?: string;
+          categoria?: string;
+        }>;
       };
       const itens = (json.itens ?? [])
         .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
         .map((i) => {
           const unidade = typeof i.unidade === "string" ? i.unidade : "un";
           const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
-          const estimado = i.estimado === true || pesoOuVolume;
+          const estimado =i.estimado === true || pesoOuVolume;
           const confiancaBase =
             typeof i.confianca === "number" && Number.isFinite(i.confianca)
               ? Math.max(0, Math.min(i.confianca, 1))
@@ -166,10 +182,11 @@ export const estimarPrecos = createServerFn({ method: "POST" })
       return {
         ok: true as const,
         ...resultado,
-        local: data.lat !== undefined ? data.local?.trim() ?? "" : "",
+        local: data.lat !== undefined ? (data.local?.trim() ?? "") : "",
       };
     } catch (e) {
-      const erro = e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
+      const erro =
+        e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
       return { ok: false as const, erro, precos: [], observacao: "", dataColeta: "", local: "" };
     }
   });
@@ -184,6 +201,121 @@ function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return Math.round(2 * R * Math.asin(Math.sqrt(h)) * 10) / 10;
 }
 
+type OpenStreetMapPlace = {
+  type?: string;
+  lat?: number;
+  lon?: number;
+  center?: { lat?: number; lon?: number };
+  tags?: Record<string, string | undefined>;
+};
+
+/**
+ * Busca mercados no OpenStreetMap quando não há chave Geoapify configurada.
+ * Usa apenas dados OSM públicos e mantém o raio de 5 km da busca original.
+ */
+async function buscarMercadosOpenStreetMap(lat: number, lng: number) {
+  const query = [
+    "[out:json][timeout:12];",
+    "(",
+    `node["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
+    `way["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
+    `relation["shop"~"^(supermarket|convenience|grocery)$"](around:5000,${lat},${lng});`,
+    ");",
+    "out center tags 100;",
+  ].join("");
+
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+  ];
+  let ultimoErro = "Os servidores públicos do OpenStreetMap não responderam.";
+
+  for (const endpoint of endpoints) {
+    try {
+      const resposta = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+          "User-Agent": "SuaGeladeiraInteligente/1.0",
+        },
+        body: new URLSearchParams({ data: query }),
+        signal: AbortSignal.timeout(12_000),
+      });
+
+      if (!resposta.ok) {
+        ultimoErro = `OpenStreetMap respondeu com status ${resposta.status}.`;
+        continue;
+      }
+
+      const json = (await resposta.json()) as { elements?: OpenStreetMapPlace[] };
+      const vistos = new Set<string>();
+      const lojas = (json.elements ?? [])
+        .map((elemento) => {
+          const tags = elemento.tags ?? {};
+          const nome = tags["name"]?.trim() || tags["brand"]?.trim() || tags["operator"]?.trim();
+          const latLoja = elemento.lat ?? elemento.center?.lat;
+          const lngLoja = elemento.lon ?? elemento.center?.lon;
+          if (!nome || typeof latLoja !== "number" || typeof lngLoja !== "number") return null;
+
+          const endereco =
+            [
+              [tags["addr:street"], tags["addr:housenumber"]].filter(Boolean).join(", "),
+              tags["addr:suburb"] || tags["addr:district"],
+              tags["addr:city"],
+            ]
+              .filter(Boolean)
+              .join(" - ") || "Endereço não informado";
+          const chave = `${nome.toLocaleLowerCase("pt-BR")}|${latLoja.toFixed(4)}|${lngLoja.toFixed(4)}`;
+          if (vistos.has(chave)) return null;
+          vistos.add(chave);
+
+          return {
+            nome,
+            endereco,
+            lat: latLoja,
+            lng: lngLoja,
+            distanciaKm:
+              Math.round(distanciaKm({ lat, lng }, { lat: latLoja, lng: lngLoja }) * 10) / 10,
+            cidade: tags["addr:city"] ?? "",
+            bairro: tags["addr:suburb"] ?? tags["addr:district"] ?? "",
+            estado: tags["addr:state"] ?? "",
+          };
+        })
+        .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
+        .sort((a, b) => a.distanciaKm - b.distanciaKm)
+        .slice(0, 8);
+
+      const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
+      const local = lojaComLocal
+        ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
+        : "";
+
+      return {
+        ok: lojas.length > 0,
+        conectado: true,
+        erro:
+          lojas.length > 0
+            ? ""
+            : "O OpenStreetMap não encontrou mercados cadastrados neste raio de 5 km.",
+        lojas,
+        local,
+      };
+    } catch (erro) {
+      ultimoErro = erro instanceof Error ? erro.message : ultimoErro;
+    }
+  }
+
+  console.error("Busca OpenStreetMap indisponível:", ultimoErro);
+  return {
+    ok: false,
+    conectado: false,
+    erro: "Não foi possível localizar mercados pela base aberta agora. Tente novamente em instantes.",
+    lojas: [],
+    local: "",
+  };
+}
+
 export const buscarMercados = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
@@ -193,13 +325,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
     // num raio de 5 km. A chave fica exclusivamente no servidor (Vercel).
     const apiKey = process.env["GEOAPIFY_API_KEY"]?.trim();
     if (!apiKey) {
-      return {
-        ok: false as const,
-        conectado: false,
-        erro: "A busca de mercados ainda precisa ser configurada no servidor (GEOAPIFY_API_KEY).",
-        lojas: [],
-        local: "",
-      };
+      return buscarMercadosOpenStreetMap(data.lat, data.lng);
     }
 
     try {
@@ -219,13 +345,14 @@ export const buscarMercados = createServerFn({ method: "POST" })
 
       if (!resposta.ok) {
         console.error("Geoapify Places respondeu com status " + resposta.status + ".");
-        const erro = resposta.status === 401 || resposta.status === 403
-          ? "A chave da busca de mercados é inválida ou não está autorizada. Confira GEOAPIFY_API_KEY no Vercel."
-          : resposta.status === 429
-            ? "O limite gratuito diário da busca de mercados foi atingido. Tente novamente amanhã."
-            : resposta.status >= 500
-              ? "O serviço de localização está temporariamente indisponível. Tente novamente em instantes."
-              : "Não foi possível consultar os mercados (erro " + resposta.status + ").";
+        const erro =
+          resposta.status === 401 || resposta.status === 403
+            ? "A chave da busca de mercados é inválida ou não está autorizada. Confira GEOAPIFY_API_KEY no Vercel."
+            : resposta.status === 429
+              ? "O limite gratuito diário da busca de mercados foi atingido. Tente novamente amanhã."
+              : resposta.status >= 500
+                ? "O serviço de localização está temporariamente indisponível. Tente novamente em instantes."
+                : "Não foi possível consultar os mercados (erro " + resposta.status + ").";
         return { ok: false as const, conectado: true, erro, lojas: [], local: "" };
       }
 
@@ -255,7 +382,8 @@ export const buscarMercados = createServerFn({ method: "POST" })
           const p = feature.properties ?? {};
           const nome = p.name?.trim();
           if (!nome || typeof p.lat !== "number" || typeof p.lon !== "number") return null;
-          const endereco = p.formatted?.trim() ||
+          const endereco =
+            p.formatted?.trim() ||
             [p.address_line1, p.address_line2].filter(Boolean).join(", ") ||
             [p.street, p.housenumber].filter(Boolean).join(", ") ||
             "Endereço não informado";
@@ -269,9 +397,10 @@ export const buscarMercados = createServerFn({ method: "POST" })
             // are centered on the selected supermarket, not the user's GPS point.
             lat: p.lat,
             lng: p.lon,
-            distanciaKm: typeof p.distance === "number"
-              ? Math.round((p.distance / 1000) * 10) / 10
-              : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
+            distanciaKm:
+              typeof p.distance === "number"
+                ? Math.round((p.distance / 1000) * 10) / 10
+                : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
             cidade: p.city ?? "",
             bairro: p.suburb ?? p.district ?? "",
             estado: p.state ?? "",
@@ -289,7 +418,13 @@ export const buscarMercados = createServerFn({ method: "POST" })
       return {
         ok: true as const,
         conectado: true,
-        lojas: lojas.map(({ nome, endereco, distanciaKm, lat, lng }) => ({ nome, endereco, distanciaKm, lat, lng })),
+        lojas: lojas.map(({ nome, endereco, distanciaKm, lat, lng }) => ({
+          nome,
+          endereco,
+          distanciaKm,
+          lat,
+          lng,
+        })),
         local,
         erro: "",
       };
@@ -299,9 +434,10 @@ export const buscarMercados = createServerFn({ method: "POST" })
       return {
         ok: false as const,
         conectado: true,
-        erro: mensagem.includes("Timeout") || mensagem.includes("aborted")
-          ? "A busca de mercados demorou demais. Tente novamente."
-          : "Não foi possível consultar os mercados próximos agora.",
+        erro:
+          mensagem.includes("Timeout") || mensagem.includes("aborted")
+            ? "A busca de mercados demorou demais. Tente novamente."
+            : "Não foi possível consultar os mercados próximos agora.",
         lojas: [],
         local: "",
       };
