@@ -300,13 +300,6 @@ async function buscarOpenPricesJson<T>(url: string): Promise<T> {
   return (await resposta.json()) as T;
 }
 
-function mediana(valores: number[]) {
-  const ordenados = [...valores].sort((a, b) => a - b);
-  const meio = Math.floor(ordenados.length / 2);
-  return ordenados.length % 2
-    ? ordenados[meio]!
-    : ((ordenados[meio - 1] ?? 0) + (ordenados[meio] ?? 0)) / 2;
-}
 
 async function buscarProdutoOpenPrices(nome: string, codigo?: string) {
   if (codigo) {
