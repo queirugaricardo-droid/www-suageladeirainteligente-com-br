@@ -275,10 +275,10 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     [
       `🧊 Lista de compras (${rotuloFrequencia.toLowerCase()})`,
       "",
-      ...pendentes.map(
-        (l) =>
-          `${emojiDoAlimento(l.item.nome, l.item.emoji)} ${l.item.nome} — ${quantidadeComprar(l)} ${l.item.unidade}`,
-      ),
+      ...pendentes.map((l) => {
+        const preco = precoLinha(l);
+        return `${emojiDoAlimento(l.item.nome, l.item.emoji)} ${l.item.nome} — ${quantidadeComprar(l)} ${l.item.unidade} — ${preco > 0 ? moeda(preco) : "preço não encontrado"}`;
+      }),
       "",
       total > 0 ? `💰 Total estimado: ${moeda(total)}` : "",
     ]
@@ -653,7 +653,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                       return (
                         <label
                           key={l.item.id}
-                          className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-3"
+                          className="flex min-w-0 cursor-pointer items-start gap-3 rounded-xl border border-border p-3"
                         >
                           <Checkbox
                             checked={marcado}
@@ -661,20 +661,20 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                               setComprados((atual) => ({ ...atual, [l.item.id]: v === true }))
                             }
                           />
-                          <span className="text-xl" aria-hidden="true">
+                          <span className="shrink-0 text-xl" aria-hidden="true">
                             {emojiDoAlimento(
                               l.item.nome,
                               detectados.find((item) => mesmoItem(item.nome, l.item.nome))?.emoji ?? l.item.emoji,
                             )}
                           </span>
-                          <span className={marcado ? "line-through opacity-60" : ""}>
-                            {l.item.nome}
-                          </span>
-                          <span className="text-sm tabular-nums text-muted-foreground">
-                            {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
-                          </span>
-                          <span className="ml-auto text-sm tabular-nums">
-                            {preco > 0 ? moeda(preco) : "—"}
+                          <span className={`min-w-0 flex-1 ${marcado ? "line-through opacity-60" : ""}`}>
+                            <span className="block break-words font-medium">{l.item.nome}</span>
+                            <span className="mt-0.5 block text-sm text-muted-foreground">
+                              {quantidadeComprar(l).toLocaleString("pt-BR")} {l.item.unidade}
+                            </span>
+                            <span className="mt-1 block text-sm font-semibold tabular-nums text-primary">
+                              {preco > 0 ? `Preço estimado: ${moeda(preco)}` : "Preço não encontrado"}
+                            </span>
                           </span>
                         </label>
                       );
