@@ -3,7 +3,6 @@ import {
   Check,
   Copy,
   Loader2,
-  MapPin,
   MessageCircle,
   Minus,
   Pencil,
@@ -11,8 +10,6 @@ import {
   Trash2,
   X,
   ShoppingCart,
-  Store,
-  TriangleAlert,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -21,7 +18,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Gauge } from "./gauge";
 import { estimarPrecos } from "@/lib/fridge.functions";
