@@ -118,7 +118,10 @@ function correspondeFilialSelecionada(
     );
   }
 
-  // Sem coordenadas confiáveis, só aceita igualdade integral do nome da filial.
+  // Sem coordenadas, uma marca isolada (ex.: "Carrefour") não identifica filial.
+  // Exige ao menos dois termos e igualdade integral com o nome da loja.
+  const termosSelecionados = tokens(nomeSelecionado);
+  if (termosSelecionados.length < 2) return false;
   const nomeNormalizado = normalizar(nomeSelecionado);
   return [nomeEncontrado, ...nomesAlternativos].some(
     (nome) => !!nome && normalizar(nome) === nomeNormalizado,
@@ -396,7 +399,6 @@ async function consultarOpenPrices(
           [
             registro.location?.osm_name,
             registro.location?.osm_display_name,
-            registro.location?.osm_brand,
           ],
         ),
       );
