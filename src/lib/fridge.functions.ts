@@ -156,108 +156,60 @@ export const estimarPrecos = createServerFn({ method: "POST" })
     }
   });
 
-function distanciaKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
-  const R = 6371;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return Math.round(2 * R * Math.asin(Math.sqrt(h)) * 10) / 10;
-}
-
 export const buscarMercados = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const lovableKey = process.env["LOVABLE_API_KEY"];
-    const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
-    if (!lovableKey || !mapsKey) {
-      return {
-        ok: false as const,
-        conectado: false,
-        erro: "Os mercados próximos ainda não estão disponíveis: falta conectar o serviço de mapas.",
-        lojas: [],
-        local: "",
-      };
-    }
-
-    const base = "https://connector-gateway.lovable.dev/google_maps";
-    const headers = {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": mapsKey,
-      "Content-Type": "application/json",
-    };
-
     try {
-      const resposta = await fetch(`${base}/places/v1/places:searchNearby`, {
-        method: "POST",
+      const url = new URL("https://nominatim.openstreetmap.org/reverse");
+      url.searchParams.set("lat", String(data.lat));
+      url.searchParams.set("lon", String(data.lng));
+      url.searchParams.set("format", "jsonv2");
+      url.searchParams.set("zoom", "10");
+      const resposta = await fetch(url, {
         headers: {
-          ...headers,
-          "X-Goog-FieldMask":
-            "places.displayName,places.formattedAddress,places.location,places.rating",
+          "User-Agent": "SuaGeladeiraInteligente/1.0 (https://suageladeirainteligente.com.br)",
+          "Accept-Language": "pt-BR",
         },
-        body: JSON.stringify({
-          includedTypes: ["supermarket", "grocery_store"],
-          maxResultCount: 8,
-          languageCode: "pt-BR",
-          locationRestriction: {
-            circle: { center: { latitude: data.lat, longitude: data.lng }, radius: 5000 },
-          },
-        }),
+        signal: AbortSignal.timeout(10_000),
       });
-
-      if (!resposta.ok) {
-        const corpo = await resposta.text();
-        console.error(`Gateway Google Maps falhou [${resposta.status}]: ${corpo}`);
+      if (!resposta.ok) throw new Error("O serviço gratuito de localização está temporariamente indisponível.");
+      const json = (await resposta.json()) as {
+        address?: {
+          city?: string;
+          town?: string;
+          village?: string;
+          municipality?: string;
+          county?: string;
+          state?: string;
+          "ISO3166-2-lvl4"?: string;
+        };
+      };
+      const endereco = json.address ?? {};
+      const cidade =
+        endereco.city ??
+        endereco.town ??
+        endereco.village ??
+        endereco.municipality ??
+        endereco.county;
+      const uf = endereco["ISO3166-2-lvl4"]?.split("-").at(-1);
+      const local = [cidade, uf ?? endereco.state].filter(Boolean).join(", ");
+      if (!cidade) {
         return {
           ok: false as const,
           conectado: true,
-          erro: `Não consegui buscar mercados próximos (${resposta.status}).`,
+          erro: "Não consegui identificar sua cidade pelo GPS. Digite a cidade ou o CEP.",
           lojas: [],
           local: "",
         };
       }
-
-      const json = (await resposta.json()) as {
-        places?: Array<{
-          displayName?: { text?: string };
-          formattedAddress?: string;
-          location?: { latitude: number; longitude: number };
-          rating?: number;
-        }>;
-      };
-
-      const lojas = (json.places ?? []).map((p) => ({
-        nome: p.displayName?.text ?? "Mercado",
-        endereco: p.formattedAddress ?? "",
-        nota: p.rating,
-        distanciaKm: p.location
-          ? distanciaKm(
-              { lat: data.lat, lng: data.lng },
-              { lat: p.location.latitude, lng: p.location.longitude },
-            )
-          : undefined,
-      }));
-      lojas.sort((a, b) => (a.distanciaKm ?? 99) - (b.distanciaKm ?? 99));
-
-      let local = "";
-      const geo = await fetch(
-        `${base}/maps/api/geocode/json?latlng=${data.lat},${data.lng}&language=pt-BR`,
-        { headers },
-      );
-      if (geo.ok) {
-        const g = (await geo.json()) as { results?: Array<{ formatted_address?: string }> };
-        local = g.results?.[0]?.formatted_address ?? "";
-      }
-
-      return { ok: true as const, conectado: true, lojas, local, erro: "" };
+      return { ok: true as const, conectado: true, erro: "", lojas: [], local };
     } catch (e) {
       return {
         ok: false as const,
-        conectado: true,
-        erro: e instanceof Error ? e.message : "Falha ao buscar mercados próximos.",
+        conectado: false,
+        erro: e instanceof Error ? e.message : "Não consegui identificar sua região.",
         lojas: [],
         local: "",
       };
