@@ -1107,3 +1107,69 @@ export async function consultarPrecosEmMercados(
   const observacao = `Pesquisa automática em ${lojasUnicas.length} supermercado(s) encontrado(s). Primeiro foram consultadas as filiais selecionadas; sem preço nelas, foi feita busca regional, média oficial do varejo do IEA quando a cidade é São Paulo e, por último, referência nacional nas fontes públicas. Médias regionais, do IEA e nacionais são identificadas e nunca atribuídas à filial escolhida. ${totalComPreco} de ${itens.length} produto(s) tiveram preço: ${totalRegional} regional(is), ${totalIea} referência(s) IEA e ${totalNacional} nacional(is). Produtos sem registro continuam sem preço.`;
   return { precos, observacao, dataColeta: maiorData };
 }
+
+
+/**
+ * Calcula preços de referência para uma cidade inteira, sem selecionar filiais.
+ * A quantidade enviada às fontes é sempre 1 para que a resposta seja preço unitário;
+ * a lista de compras multiplica esse valor pela quantidade que falta.
+ */
+export async function consultarMediaRegional(itens: InputItem[], filtros: { local?: string }) {
+  if (itens.length > 20) {
+    throw new Error("Consulte até 20 itens por vez para respeitar a cota das fontes gratuitas.");
+  }
+
+  const localResolvido = await resolverLocalidade(filtros.local);
+  if (!localResolvido?.trim()) {
+    throw new Error("Informe uma cidade ou CEP para consultar os preços da região.");
+  }
+
+  const itensUnitarios = itens.map((item) => ({ ...item, quantidade: 1 }));
+  const observados = await consultarPrecosObservados(itensUnitarios, { local: localResolvido });
+  const semPreco = itensUnitarios.filter((item) =>
+    !observados.precos.some((preco) => preco.nome === item.nome && preco.precoUnitario > 0),
+  );
+  const iea = await consultarPrecosIea(semPreco, localResolvido);
+
+  const precos = itensUnitarios.map((item) => {
+    const observado = observados.precos.find((preco) => preco.nome === item.nome);
+    if (observado && observado.precoUnitario > 0) {
+      return {
+        ...observado,
+        mercado: "Média das ofertas observadas em " + localResolvido,
+        tipoPreco: "regional",
+      };
+    }
+
+    const referenciaIea = iea.get(item.nome);
+    if (referenciaIea) {
+      return {
+        ...referenciaIea,
+        tipoPreco: "referência IEA",
+      };
+    }
+
+    return {
+      nome: item.nome,
+      precoUnitario: 0,
+      produto: observado?.produto ?? "",
+      mercado: "",
+      atualizadoEm: "",
+      tipoPreco: "indisponível",
+    };
+  });
+
+  const comPreco = precos.filter((preco) => preco.precoUnitario > 0).length;
+  const dataColeta = precos.map((preco) => preco.atualizadoEm).filter(Boolean).sort().at(-1) ?? "";
+  const observacao = [
+    "Localização usada: " + localResolvido + ".",
+    "Os preços são médias ou referências das fontes públicas disponíveis para a cidade, não preços garantidos de uma loja específica.",
+    observados.observacao,
+    iea.size > 0
+      ? "Quando não havia observação compatível, foi usada a média oficial do varejo do IEA, exclusiva da cidade de São Paulo."
+      : "",
+    comPreco + " de " + itens.length + " produtos tiveram preço disponível. Os demais ficam sem preço, sem estimativas inventadas.",
+  ].filter(Boolean).join(" ");
+
+  return { precos, observacao, dataColeta, local: localResolvido };
+}
