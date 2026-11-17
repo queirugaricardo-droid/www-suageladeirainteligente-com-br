@@ -44,6 +44,14 @@ function comprimir(arquivo: File): Promise<string> {
   });
 }
 
+function mensagemErroAnalise(erro: unknown): string {
+  const mensagem = erro instanceof Error ? erro.message : String(erro ?? "");
+  if (/^load failed$/i.test(mensagem) || /failed to fetch|networkerror|network request failed/i.test(mensagem)) {
+    return "A conexão com o serviço de análise foi interrompida antes de receber a resposta. Verifique sua internet e tente novamente. Se persistir, a cota ou disponibilidade do Gemini pode estar limitada.";
+  }
+  return mensagem || "Falha ao analisar a foto. Tente novamente.";
+}
+
 export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTab(
   { estoque, aoConcluir },
   ref,
@@ -101,7 +109,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
       aoConcluir(resposta.itens);
       toast.success(`${resposta.itens.length} itens identificados — revise antes de confirmar.`);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Falha ao analisar a foto.");
+      setErro(mensagemErroAnalise(e));
     } finally {
       setCarregando(false);
     }
