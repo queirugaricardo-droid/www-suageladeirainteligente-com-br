@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Check,
   Copy,
@@ -60,6 +60,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
   const [localManual, setLocalManual] = useState("");
   const [coordenadas, setCoordenadas] = useState<{ lat: number; lng: number } | null>(null);
   const [lojas, setLojas] = useState<Loja[]>([]);
+
   const [avisoLocal, setAvisoLocal] = useState("");
   const [carregandoLocal, setCarregandoLocal] = useState(false);
   const [carregandoPrecos, setCarregandoPrecos] = useState(false);
@@ -206,7 +207,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           } catch {
             setAvisoLocal("Não consegui listar os mercados próximos. Vou consultar os preços da região.");
           }
-          await calcularPrecos(undefined, localizacao, localizacaoTexto);
+          setPrecos([]);
+          setObservacao("");
+
         } finally {
           setCarregandoLocal(false);
         }
@@ -223,8 +226,9 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
   async function calcularPrecos(
     mercado?: string,
-    ponto = coordenadas,
+    ponto: { lat: number; lng: number } | null = coordenadas,
     localidade = local,
+    mercadosParaConsultar: Loja[] = lojas,
   ) {
     if (faltantes.length === 0) return;
     if (faltantes.length > 20) {
@@ -232,6 +236,8 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       return;
     }
     setCarregandoPrecos(true);
+    setPrecos([]);
+    setObservacao("");
     try {
       const resposta = await orcar({
         data: {
@@ -242,6 +248,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           })),
           local: ponto ? localidade : localManual.trim() || local || "",
           mercado: mercado || "",
+          lojas: mercado
+            ? []
+            : mercadosParaConsultar.map((loja) => ({
+                nome: loja.nome,
+                ...(loja.lat !== undefined && loja.lng !== undefined
+                  ? { lat: loja.lat, lng: loja.lng }
+                  : {}),
+              })),
           lat: ponto?.lat,
           lng: ponto?.lng,
         },
@@ -254,7 +268,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
       setObservacao(resposta.observacao);
       if (!local && resposta.local) setLocal(resposta.local);
       if (resposta.precos.some((preco) => preco.precoUnitario > 0)) {
-        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Preços observados consultados.");
+        toast.success(mercado ? `Preços consultados para ${mercado}.` : "Média dos preços dos mercados próximos calculada.");
       } else {
         toast.error("Não encontrei preços observados compatíveis com os itens e a região.");
       }
@@ -265,6 +279,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
     }
   }
 
+
+  useEffect(() => {
+    if (lojas.length > 0 && faltantes.length > 0) {
+      void calcularPrecos("", coordenadas, local, lojas);
+    }
+    // A consulta automática deve ocorrer quando a lista de mercados for atualizada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojas]);
 
   const pendentes = faltantes.filter((l) => !comprados[l.item.id]);
 
@@ -300,7 +322,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
 
 
   return (
-    <div className="space-y-6">
+    <div className="w-full min-w-0 max-w-full space-y-6 overflow-x-hidden">
       <Card>
         <CardContent className="flex flex-col items-center gap-6 py-8 sm:flex-row sm:justify-around">
           <Gauge percentual={relatorio.abastecimento} />
@@ -485,20 +507,41 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
+      <Card className="w-full min-w-0 max-w-full overflow-hidden">
+        <CardHeader className="min-w-0">
+          <CardTitle className="flex min-w-0 flex-wrap items-center gap-2 text-lg">
             <MapPin className="size-4 text-primary" /> Preços perto de você
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
+        <CardContent className="min-w-0 space-y-4 overflow-hidden">
+          <p className="break-words text-xs text-muted-foreground">
+            Localização dos estabelecimentos: dados do{" "}
+            <a
+              href="https://www.geoapify.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              Geoapify
+            </a>{" "}
+            e do{" "}
+            <a
+              href="https://www.openstreetmap.org/copyright"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              © OpenStreetMap contributors
+            </a>
+            .
+          </p>
+          <div className="flex w-full min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button className="w-full sm:w-auto" variant="outline" onClick={usarLocalizacao} disabled={carregandoLocal || carregandoPrecos}>
               {carregandoLocal ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
               {carregandoLocal ? "Buscando mercados e preços..." : "Usar minha localização"}
             </Button>
             <Input
-              className="h-9 w-56"
+              className="h-10 w-full min-w-0 sm:w-56"
               placeholder="Digite cidade ou CEP"
               value={localManual}
               onChange={(e) => {
@@ -507,6 +550,7 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
               }}
             />
             <Button
+              className="w-full sm:w-auto"
               onClick={() => calcularPrecos()}
               disabled={carregandoPrecos || faltantes.length === 0}
             >
@@ -515,14 +559,14 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                   <Loader2 className="size-4 animate-spin" /> Calculando...
                 </>
               ) : (
-                "Estimar preços"
+                "Atualizar preços"
               )}
             </Button>
           </div>
 
           {local && (
             <p className="text-sm text-muted-foreground">
-              Região considerada: <span className="text-foreground">{local}</span>
+              Mercados encontrados perto de: <span className="text-foreground">{local}</span>
             </p>
           )}
 
@@ -534,35 +578,32 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
           )}
 
           {lojas.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-2">
+            <>
+            <p className="text-sm font-medium">Mercados encontrados — todos serão consultados automaticamente:</p>
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
               {lojas.map((loja) => (
                 <div
                   key={`${loja.nome}-${loja.endereco}`}
-                  className="flex items-start gap-3 rounded-xl border border-border p-3"
+                  className="flex min-w-0 max-w-full items-start gap-2 overflow-hidden rounded-xl border border-border p-3 sm:gap-3"
                 >
                   <Store className="mt-0.5 size-4 text-primary" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{loja.nome}</p>
-                    <p className="truncate text-xs text-muted-foreground">{loja.endereco}</p>
+                  <div className="min-w-0 flex-1 break-words">
+                    <p className="whitespace-normal break-words text-sm font-medium leading-snug">{loja.nome}</p>
+                    <p className="whitespace-normal break-words text-xs leading-snug text-muted-foreground">{loja.endereco}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {loja.distanciaKm !== undefined && `${loja.distanciaKm} km`}
                       {loja.nota !== undefined && ` · nota ${loja.nota}`}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => calcularPrecos(loja.nome)}
-                    disabled={carregandoPrecos}
-                  >
-                    Comparar
-                  </Button>
+                  <Badge variant="secondary" className="shrink-0">Incluído</Badge>
                 </div>
               ))}
             </div>
+            </>
           )}
 
-          {observacao && <p className="text-xs text-muted-foreground">{observacao}</p>}
+
+          {observacao && <p className="break-words text-xs text-muted-foreground">{observacao}</p>}
         </CardContent>
       </Card>
 
@@ -660,9 +701,26 @@ export function RelatorioTab({ relatorio, estoque, atualizarRelatorio, adicionar
                 <span className="text-xl font-semibold tabular-nums">{moeda(total)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Preços observados em lojas online e coletados pelo PreçoMelhor. Podem variar por filial,
-                promoções e disponibilidade; sem localização ou mercado específico, usamos a média das
-                ofertas disponíveis. Consulte até 20 itens por vez.
+                Preços consultados no{" "}
+                <a
+                  href="https://www.precomelhor.com.br"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  PreçoMelhor
+                </a>{" "}e no{" "}
+                <a
+                  href="https://prices.openfoodfacts.org/"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  Open Prices (Open Food Facts)
+                </a>
+                , uma base comunitária de preços. Os registros podem não cobrir todos os produtos ou
+                mercados e podem variar por filial, data e promoção. Quando não houver registro
+                compatível, o aplicativo não inventa um preço. Consulte até 20 itens por vez.
               </p>
             </>
           )}
