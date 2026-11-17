@@ -128,6 +128,20 @@ export const estimarPrecos = createServerFn({ method: "POST" })
           .max(20),
         local: z.string().max(200).optional(),
         mercado: z.string().max(200).optional(),
+        lojas: z
+          .array(
+            z
+              .object({
+                nome: z.string().trim().min(1).max(200),
+                lat: z.number().min(-90).max(90).optional(),
+                lng: z.number().min(-180).max(180).optional(),
+              })
+              .refine((loja) => (loja.lat === undefined) === (loja.lng === undefined), {
+                message: "Informe latitude e longitude juntas para cada mercado.",
+              }),
+          )
+          .max(20)
+          .optional(),
         lat: z.number().min(-90).max(90).optional(),
         lng: z.number().min(-180).max(180).optional(),
       })
@@ -139,12 +153,18 @@ export const estimarPrecos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     try {
-      const { consultarPrecosObservados } = await import("./market-prices.server");
-      const resultado = await consultarPrecosObservados(data.itens, {
+      const { consultarPrecosObservados, consultarPrecosEmMercados } =
+        await import("./market-prices.server");
+      const filtros = {
         ...(data.mercado ? { mercado: data.mercado } : {}),
         ...(data.local ? { local: data.local } : {}),
-        ...(data.lat !== undefined && data.lng !== undefined ? { coordenadas: { lat: data.lat, lng: data.lng } } : {}),
-      });
+        ...(data.lat !== undefined && data.lng !== undefined
+          ? { coordenadas: { lat: data.lat, lng: data.lng } }
+          : {}),
+      };
+      const resultado = data.lojas?.length
+        ? await consultarPrecosEmMercados(data.itens, filtros, data.lojas)
+        : await consultarPrecosObservados(data.itens, filtros);
       return {
         ok: true as const,
         ...resultado,
@@ -171,93 +191,119 @@ export const buscarMercados = createServerFn({ method: "POST" })
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
   .handler(async ({ data }) => {
-    const lovableKey = process.env["LOVABLE_API_KEY"];
-    const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
-    if (!lovableKey || !mapsKey) {
+    // Geoapify Places API: pesquisa supermercados e lojas de conveniência
+    // num raio de 5 km. A chave fica exclusivamente no servidor (Vercel).
+    const apiKey = process.env["GEOAPIFY_API_KEY"]?.trim();
+    if (!apiKey) {
       return {
         ok: false as const,
         conectado: false,
-        erro: "Os mercados próximos ainda não estão disponíveis: falta conectar o serviço de mapas.",
+        erro: "A busca de mercados ainda precisa ser configurada no servidor (GEOAPIFY_API_KEY).",
         lojas: [],
         local: "",
       };
     }
 
-    const base = "https://connector-gateway.lovable.dev/google_maps";
-    const headers = {
-      Authorization: `Bearer ${lovableKey}`,
-      "X-Connection-Api-Key": mapsKey,
-      "Content-Type": "application/json",
-    };
-
     try {
-      const resposta = await fetch(`${base}/places/v1/places:searchNearby`, {
-        method: "POST",
-        headers: {
-          ...headers,
-          "X-Goog-FieldMask":
-            "places.displayName,places.formattedAddress,places.location,places.rating",
-        },
-        body: JSON.stringify({
-          includedTypes: ["supermarket", "grocery_store"],
-          maxResultCount: 8,
-          languageCode: "pt-BR",
-          locationRestriction: {
-            circle: { center: { latitude: data.lat, longitude: data.lng }, radius: 5000 },
-          },
-        }),
+      const parametros = new URLSearchParams({
+        categories: "commercial.supermarket,commercial.convenience",
+        filter: `circle:${data.lng},${data.lat},5000`,
+        bias: `proximity:${data.lng},${data.lat}`,
+        limit: "100",
+        lang: "pt",
+        apiKey,
+      });
+      const resposta = await fetch(`https://api.geoapify.com/v2/places?${parametros.toString()}`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(12_000),
       });
 
       if (!resposta.ok) {
-        const corpo = await resposta.text();
-        console.error(`Gateway Google Maps falhou [${resposta.status}]: ${corpo}`);
-        return {
-          ok: false as const,
-          conectado: true,
-          erro: `Não consegui buscar mercados próximos (${resposta.status}).`,
-          lojas: [],
-          local: "",
-        };
+        console.error("Geoapify Places respondeu com status " + resposta.status + ".");
+        const erro = resposta.status === 401 || resposta.status === 403
+          ? "A chave da busca de mercados é inválida ou não está autorizada. Confira GEOAPIFY_API_KEY no Vercel."
+          : resposta.status === 429
+            ? "O limite gratuito diário da busca de mercados foi atingido. Tente novamente amanhã."
+            : resposta.status >= 500
+              ? "O serviço de localização está temporariamente indisponível. Tente novamente em instantes."
+              : "Não foi possível consultar os mercados (erro " + resposta.status + ").";
+        return { ok: false as const, conectado: true, erro, lojas: [], local: "" };
       }
 
       const json = (await resposta.json()) as {
-        places?: Array<{
-          displayName?: { text?: string };
-          formattedAddress?: string;
-          location?: { latitude: number; longitude: number };
-          rating?: number;
+        features?: Array<{
+          properties?: {
+            name?: string;
+            formatted?: string;
+            address_line1?: string;
+            address_line2?: string;
+            street?: string;
+            housenumber?: string;
+            suburb?: string;
+            district?: string;
+            city?: string;
+            state?: string;
+            lat?: number;
+            lon?: number;
+            distance?: number;
+          };
         }>;
       };
 
-      const lojas = (json.places ?? []).map((p) => ({
-        nome: p.displayName?.text ?? "Mercado",
-        endereco: p.formattedAddress ?? "",
-        nota: p.rating,
-        distanciaKm: p.location
-          ? distanciaKm(
-              { lat: data.lat, lng: data.lng },
-              { lat: p.location.latitude, lng: p.location.longitude },
-            )
-          : undefined,
-      }));
-      lojas.sort((a, b) => (a.distanciaKm ?? 99) - (b.distanciaKm ?? 99));
+      const vistos = new Set<string>();
+      const lojas = (json.features ?? [])
+        .map((feature) => {
+          const p = feature.properties ?? {};
+          const nome = p.name?.trim();
+          if (!nome || typeof p.lat !== "number" || typeof p.lon !== "number") return null;
+          const endereco = p.formatted?.trim() ||
+            [p.address_line1, p.address_line2].filter(Boolean).join(", ") ||
+            [p.street, p.housenumber].filter(Boolean).join(", ") ||
+            "Endereço não informado";
+          const chave = nome.toLocaleLowerCase("pt-BR") + "|" + endereco.toLocaleLowerCase("pt-BR");
+          if (vistos.has(chave)) return null;
+          vistos.add(chave);
+          return {
+            nome,
+            endereco,
+            // Preserve the exact Geoapify branch coordinates so price lookups
+            // are centered on the selected supermarket, not the user's GPS point.
+            lat: p.lat,
+            lng: p.lon,
+            distanciaKm: typeof p.distance === "number"
+              ? Math.round((p.distance / 1000) * 10) / 10
+              : distanciaKm({ lat: data.lat, lng: data.lng }, { lat: p.lat, lng: p.lon }),
+            cidade: p.city ?? "",
+            bairro: p.suburb ?? p.district ?? "",
+            estado: p.state ?? "",
+          };
+        })
+        .filter((loja): loja is NonNullable<typeof loja> => loja !== null)
+        .sort((a, b) => a.distanciaKm - b.distanciaKm)
+        .slice(0, 8);
 
-      let local = "";
-      const geo = await fetch(
-        `${base}/maps/api/geocode/json?latlng=${data.lat},${data.lng}&language=pt-BR`,
-        { headers },
-      );
-      if (geo.ok) {
-        const g = (await geo.json()) as { results?: Array<{ formatted_address?: string }> };
-        local = g.results?.[0]?.formatted_address ?? "";
-      }
+      const lojaComLocal = lojas.find((loja) => loja.cidade || loja.bairro);
+      const local = lojaComLocal
+        ? [lojaComLocal.bairro, lojaComLocal.cidade, lojaComLocal.estado].filter(Boolean).join(", ")
+        : "";
 
-      return { ok: true as const, conectado: true, lojas, local, erro: "" };
+      return {
+        ok: true as const,
+        conectado: true,
+        lojas: lojas.map(({ nome, endereco, distanciaKm, lat, lng }) => ({ nome, endereco, distanciaKm, lat, lng })),
+        local,
+        erro: "",
+      };
     } catch (e) {
+      const mensagem = e instanceof Error ? e.message : "";
+      console.error("Falha ao consultar Geoapify Places.", mensagem);
       return {
         ok: false as const,
         conectado: true,
-        erro: e instanceof Error ? e.message : "Falha ao buscar mercados próximos.",
+        erro: mensagem.includes("Timeout") || mensagem.includes("aborted")
+          ? "A busca de mercados demorou demais. Tente novamente."
+          : "Não foi possível consultar os mercados próximos agora.",
         lojas: [],
         local: "",
       };
