@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { imagemInline, textoGemini, type GeminiChunk } from "./gemini-response";
-import { comNovaTentativa503, statusGemini } from "./gemini-retry";
+import { comFallbackModelos503, statusGemini } from "./gemini-retry";
 
 const itemSchema = {
   type: "object",
@@ -61,8 +61,7 @@ export async function gerarJsonGemini(
 ) {
   const ai = new GoogleGenAI({
     apiKey: chave,
-    // The SDK does not retry unless this is configured. Keep the retry window
-    // bounded for serverless execution while tolerating brief Gemini 5xx overloads.
+    // Keep transient retries bounded for serverless execution.
     httpOptions: {
       retryOptions: {
         attempts: 3,
@@ -74,25 +73,44 @@ export async function gerarJsonGemini(
     },
   });
   let response;
+  let modeloEmUso = model;
+
   try {
-    const gerar = () =>
-      ai.models.generateContent({
-        model,
+    const gerar = (modelo: string) => {
+      modeloEmUso = modelo;
+      return ai.models.generateContent({
+        model: modelo,
         contents: [{ role: "user", parts: [{ text: prompt }, ...imagens.map(imagemInline)] }],
         config: {
           responseMimeType: "application/json",
           responseJsonSchema: imagens.length ? itemSchema : priceSchema,
         },
       });
-    // A single fresh photo request helps if the provider remains overloaded
-    // after the bounded retries configured above.
-    response = imagens.length ? await comNovaTentativa503(gerar) : await gerar();
+    };
+
+    if (imagens.length > 0) {
+      // Keep Gemini 3.5 Flash as the primary model. If Google returns 503
+      // after the SDK retries, move to stable image-capable Gemini models.
+      const modelos = [...new Set([model, "gemini-3.6-flash", "gemini-3.5-flash-lite"])];
+      response = await comFallbackModelos503(
+        modelos.map((modelo) => () => gerar(modelo)),
+      );
+      if (modeloEmUso !== model) {
+        console.warn("Gemini utilizou modelo alternativo após indisponibilidade", {
+          modelSolicitado: model,
+          modelUtilizado: modeloEmUso,
+        });
+      }
+    } else {
+      response = await gerar(model);
+    }
   } catch (error) {
     // Log provider diagnostics on the server only; never expose response bodies to the browser.
     const status = statusGemini(error);
     const mensagem = error instanceof Error ? error.message : "Erro não identificado";
     console.error("Gemini generateContent falhou", {
-      model,
+      model: modeloEmUso,
+      requestedModel: model,
       status: status ?? null,
       errorName: error instanceof Error ? error.name : "UnknownError",
       providerMessage: mensagem
