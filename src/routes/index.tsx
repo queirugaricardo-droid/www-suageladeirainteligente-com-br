@@ -117,7 +117,7 @@ function Index() {
   };
 
   return (
-    <main className="min-h-screen overflow-hidden bg-background">
+    <main id="conteudo-principal" className="min-h-screen overflow-hidden bg-background">
       <header className="relative z-40 border-b border-border/70 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex min-h-20 max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
           <button className="flex items-center gap-3" onClick={() => navegar("inicio")} aria-label="Ir para o início">
@@ -184,7 +184,7 @@ function Index() {
       </a>
 
       <Tabs value={aba} onValueChange={setAba}>
-        <TabsContent value="inicio" className="mt-0" id="conteudo-principal">
+        <TabsContent value="inicio" className="mt-0">
           <section className="relative border-b border-border/70">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_30%,var(--accent),transparent_42%)] opacity-60" />
             <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-16">
