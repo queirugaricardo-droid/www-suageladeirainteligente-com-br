@@ -170,6 +170,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
     z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).parse(input),
   )
+  .middleware([requireSupabaseAuth])
   .handler(async ({ data }) => {
     const lovableKey = process.env["LOVABLE_API_KEY"];
     const mapsKey = process.env["GOOGLE_MAPS_API_KEY"];
