@@ -120,7 +120,7 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
       <CardHeader>
         <CardTitle className="text-lg">Foto da geladeira aberta</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4" aria-busy={carregando}>
         {pronto && !usuario ? (
           <Alert>
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -229,8 +229,14 @@ export const AnaliseTab = forwardRef<AnaliseTabHandle, Props>(function AnaliseTa
           </Button>
         </div>
 
+        {carregando && (
+          <p role="status" aria-live="polite" className="sr-only">
+            Analisando sua geladeira. Aguarde o resultado.
+          </p>
+        )}
+
         {erro && (
-          <Alert variant="destructive">
+          <Alert variant="destructive" role="alert" aria-live="assertive">
             <AlertDescription>{erro}</AlertDescription>
           </Alert>
         )}
