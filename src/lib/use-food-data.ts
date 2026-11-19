@@ -41,10 +41,44 @@ export function useFoodData() {
   }
 
   async function confirmarAnalise(relatorio: Relatorio, id: string) {
-    if (!userId) return;
-    const { error } = await supabase.rpc("salvar_analise_confirmada", { p_id: id, p_relatorio: prepararRelatorioConfirmado(relatorio) });
-    if (error) throw error;
-    await Promise.all([client.invalidateQueries({ queryKey: catalogKey }), client.invalidateQueries({ queryKey: historyKey })]);
+    if (!userId) throw new Error("Entre na sua conta para salvar a análise.");
+
+    const relatorioSeguro = prepararRelatorioConfirmado(relatorio);
+
+    // Prefer the database RPC because it can also persist the normalized item rows.
+    const { error: rpcError } = await supabase.rpc("salvar_analise_confirmada", {
+      p_id: id,
+      p_relatorio: relatorioSeguro,
+    });
+
+    if (rpcError) {
+      // Fallback for environments where the RPC is missing/out of sync.
+      // The user-scoped row is protected by Supabase RLS and can be saved directly.
+      const { error: historicoError } = await supabase
+        .from("historico_analises")
+        .upsert(
+          {
+            id,
+            user_id: userId,
+            relatorio: relatorioSeguro,
+          },
+          { onConflict: "id" },
+        );
+
+      if (historicoError) {
+        const detalhes = String(rpcError.message ?? "").trim();
+        throw new Error(
+          detalhes
+            ? `Não foi possível salvar a análise. ${detalhes}`
+            : "Não foi possível salvar a análise na sua conta.",
+        );
+      }
+    }
+
+    await Promise.all([
+      client.invalidateQueries({ queryKey: catalogKey }),
+      client.invalidateQueries({ queryKey: historyKey }),
+    ]);
   }
 
   return { usuario, catalogo, historico, salvarAlimento, confirmarAnalise };
