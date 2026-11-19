@@ -146,12 +146,24 @@ function Index() {
             {!dados.usuario && <Button asChild size="sm"><Link to="/cadastro">Criar conta</Link></Button>}
           </div>
 
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMenuAberto((v) => !v)} aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMenuAberto((v) => !v)}
+            aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}
+            aria-expanded={menuAberto}
+            aria-controls="menu-mobile"
+          >
             {menuAberto ? <X /> : <Menu />}
           </Button>
         </div>
         {menuAberto && (
-          <nav className="grid gap-2 border-t border-border bg-background/95 p-4 backdrop-blur-xl md:hidden">
+          <nav
+            id="menu-mobile"
+            aria-label="Navegação móvel"
+            className="grid gap-2 border-t border-border bg-background/95 p-4 backdrop-blur-xl md:hidden"
+          >
             <Button variant="ghost" className="justify-start" onClick={() => navegar("inicio")}>Início</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("estoque")}><Refrigerator /> Estoque ideal</Button>
             <Button variant="ghost" className="justify-start" onClick={() => navegar("relatorio")}><History /> Último relatório</Button>
@@ -164,8 +176,15 @@ function Index() {
         )}
       </header>
 
+      <a
+        href="#conteudo-principal"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-4 focus:py-3 focus:text-foreground focus:shadow-lg"
+      >
+        Pular para o conteúdo principal
+      </a>
+
       <Tabs value={aba} onValueChange={setAba}>
-        <TabsContent value="inicio" className="mt-0">
+        <TabsContent value="inicio" className="mt-0" id="conteudo-principal">
           <section className="relative border-b border-border/70">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_30%,var(--accent),transparent_42%)] opacity-60" />
             <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-6xl items-center gap-12 px-4 py-12 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:py-16">
