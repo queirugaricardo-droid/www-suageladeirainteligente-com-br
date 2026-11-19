@@ -6,6 +6,7 @@ on:
       - security/vite-8-1-7
     paths:
       - "package.json"
+      - "src/lib/plano.test.ts"
       - ".github/workflows/refresh-bun-lock.yml"
 
 permissions:
