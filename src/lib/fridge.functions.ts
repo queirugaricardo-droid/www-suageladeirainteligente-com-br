@@ -5,7 +5,7 @@ import { imagensAnaliseSchema } from "./plano";
 import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
 
-type ClienteSb = { from: (t: "analises_foto") => any; rpc: (...a: any[]) => any };
+type ClienteSb = { rpc: (...a: any[]) => any };
 
 function extrairJson(texto: string) {
   const limpo = texto.replace(/```json/gi, "").replace(/```/g, "").trim();
@@ -42,6 +42,17 @@ export const analisarFoto = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     try {
       const sb = context.supabase as unknown as ClienteSb;
+      const { data: autorizado, error: erroReserva } = await sb.rpc(
+        "reservar_analise_foto",
+        { p_fotos: data.imagens.length },
+      );
+      if (erroReserva) {
+        console.error("Falha ao validar limite temporário de análises.");
+        throw new Error("Não foi possível validar a solicitação. Tente novamente.");
+      }
+      if (autorizado !== true) {
+        throw new Error("429: muitas análises em pouco tempo. Aguarde um minuto e tente novamente.");
+      }
       const messages = [
           {
             role: "user" as const,
@@ -97,15 +108,6 @@ export const analisarFoto = createServerFn({ method: "POST" })
           categoria: i.categoria,
         };
       });
-      // Usage is telemetry only: it must never block an analysis.
-      try {
-        const { error: erroRegistro } = await sb
-          .from("analises_foto")
-          .insert({ user_id: context.userId, fotos: data.imagens.length });
-        if (erroRegistro) console.error("Falha ao registrar estatística de fotos.");
-      } catch {
-        console.error("Falha ao registrar estatística de fotos.");
-      }
       return { ok: true as const, itens };
     } catch (e) {
       console.error("Falha na análise da geladeira", {
