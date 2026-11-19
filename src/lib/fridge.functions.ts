@@ -16,12 +16,25 @@ function extrairJson(texto: string) {
 }
 
 function erroAmigavel(e: unknown) {
-  const texto = e instanceof Error ? e.message : String(e);
-  if (texto.includes("402")) return "Os créditos de IA do app acabaram. Adicione créditos para continuar.";
-  if (texto.includes("429")) return "Muitas análises seguidas. Espere alguns segundos e tente de novo.";
-  if (texto.includes("403")) return "O uso de IA está bloqueado nas configurações do app.";
-  return texto || "Não foi possível concluir a análise.";
+  const texto = e instanceof Error ? e.message : "";
+  if (texto.includes("402")) return "O serviço de análise está temporariamente sem créditos.";
+  if (texto.includes("429")) return "Muitas solicitações em pouco tempo. Aguarde e tente novamente.";
+  if (texto.includes("403")) return "O serviço de análise não está autorizado no momento.";
+  if (texto.includes("503")) return "O serviço de análise está temporariamente indisponível.";
+  return "Não foi possível concluir a análise. Tente novamente.";
 }
+
+const respostaGeminiSchema = z.object({
+  itens: z.array(z.object({
+    nome: z.string().trim().min(1).max(120),
+    quantidade: z.number().finite().positive().max(10_000),
+    unidade: z.enum(["un", "kg", "g", "L", "ml", "pacote"]),
+    estimado: z.boolean(),
+    confianca: z.number().finite().min(0).max(1),
+    emoji: z.string().max(8),
+    categoria: z.enum(["Frutas", "Verduras e legumes", "Laticínios", "Bebidas", "Carnes", "Ovos", "Outros"]),
+  }).strict()).max(200),
+}).strict();
 
 export const analisarFoto = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => imagensAnaliseSchema.parse(input))
@@ -69,34 +82,21 @@ export const analisarFoto = createServerFn({ method: "POST" })
         data.imagens,
         "gemini-3.5-flash",
       );
-      const json = extrairJson(texto) as {
-          itens?: Array<{ nome?: string; quantidade?: number; unidade?: string; estimado?: boolean; confianca?: number; emoji?: string; categoria?: string }>;
-      };
-      const itens = (json.itens ?? [])
-        .filter((i) => typeof i.nome === "string" && i.nome.trim().length > 0)
-        .map((i) => {
-          const unidade = typeof i.unidade === "string" ? i.unidade : "un";
-          const pesoOuVolume = ["g", "kg", "ml", "l"].includes(unidade.toLowerCase());
-          const estimado = i.estimado === true || pesoOuVolume;
-          const confiancaBase =
-            typeof i.confianca === "number" && Number.isFinite(i.confianca)
-              ? Math.max(0, Math.min(i.confianca, 1))
-              : undefined;
-          return {
-            nome: String(i.nome).trim(),
-            quantidade: Number(i.quantidade) > 0 ? Number(i.quantidade) : 1,
-            unidade,
-            estimado,
-            // Quantidade estimada nunca é apresentada como certeza.
-            confianca: estimado ? Math.min(confiancaBase ?? 0.85, 0.85) : confiancaBase,
-            emoji: typeof i.emoji === "string" ? i.emoji.trim() : undefined,
-            categoria:
-              typeof i.categoria === "string" &&
-              (CATEGORIAS_DETECCAO as readonly string[]).includes(i.categoria.trim())
-                ? (i.categoria.trim() as CategoriaDeteccao)
-                : undefined,
-          };
-        });
+      // A resposta do modelo é dado externo: validar tudo antes de usar ou persistir.
+      const json = respostaGeminiSchema.parse(extrairJson(texto));
+      const itens = json.itens.map((i) => {
+        const pesoOuVolume = ["g", "kg", "ml", "L"].includes(i.unidade);
+        const estimado = i.estimado || pesoOuVolume;
+        return {
+          nome: i.nome,
+          quantidade: i.quantidade,
+          unidade: i.unidade,
+          estimado,
+          confianca: estimado ? Math.min(i.confianca, 0.85) : i.confianca,
+          emoji: i.emoji,
+          categoria: i.categoria,
+        };
+      });
       // Usage is telemetry only: it must never block an analysis.
       try {
         const { error: erroRegistro } = await sb
@@ -108,6 +108,9 @@ export const analisarFoto = createServerFn({ method: "POST" })
       }
       return { ok: true as const, itens };
     } catch (e) {
+      console.error("Falha na análise da geladeira", {
+        tipo: e instanceof Error ? e.name : "UnknownError",
+      });
       return { ok: false as const, erro: erroAmigavel(e), itens: [] };
     }
   });
@@ -151,8 +154,10 @@ export const estimarPrecos = createServerFn({ method: "POST" })
         local: data.lat !== undefined ? data.local?.trim() ?? "" : "",
       };
     } catch (e) {
-      const erro = e instanceof Error ? e.message : "Não foi possível consultar os preços observados.";
-      return { ok: false as const, erro, precos: [], observacao: "", dataColeta: "", local: "" };
+      console.error("Falha ao consultar preços observados", {
+        tipo: e instanceof Error ? e.name : "UnknownError",
+      });
+      return { ok: false as const, erro: "Não foi possível consultar os preços agora. Tente novamente.", precos: [], observacao: "", dataColeta: "", local: "" };
     }
   });
 
@@ -210,8 +215,7 @@ export const buscarMercados = createServerFn({ method: "POST" })
       });
 
       if (!resposta.ok) {
-        const corpo = await resposta.text();
-        console.error(`Gateway Google Maps falhou [${resposta.status}]: ${corpo}`);
+        console.error(`Gateway Google Maps falhou [${resposta.status}]`);
         return {
           ok: false as const,
           conectado: true,
