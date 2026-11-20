@@ -21,7 +21,7 @@ export default async ({ mode, command }: { mode: string; command: "build" | "ser
     // nitro/vite builds from this
     server: { entry: "server" },
     pages: [{ path: "/oferta" }],
-    prerender: { enabled: true, autoStaticPathsDiscovery: false },
+    prerender: { enabled: false, autoStaticPathsDiscovery: false },
   },
   });
   return await config({ mode, command });
