@@ -47,8 +47,11 @@ function gatePage(returnTo: string, message = ""): Response {
     p { color: #5e7065; line-height: 1.55; }
     label { display: block; margin: 24px 0 8px; font-size: 14px; font-weight: 650; }
     input { width: 100%; height: 48px; padding: 0 14px; border: 1px solid #cbd9cf; border-radius: 11px; font: inherit; outline-color: #218653; }
-    button { width: 100%; height: 48px; margin-top: 16px; border: 0; border-radius: 11px; background: #218653; color: white; font: inherit; font-weight: 700; cursor: pointer; }
-    .error { margin: 14px 0 0; color: #b42318; font-size: 14px; }
+    .password-wrap { display: flex; gap: 8px; }
+    .password-wrap input { min-width: 0; flex: 1; }
+    .toggle { flex: 0 0 auto; width: auto; height: 48px; margin: 0; padding: 0 13px; border: 1px solid #cbd9cf; border-radius: 11px; background: #fff; color: #315b43; font: inherit; font-weight: 600; cursor: pointer; }
+    button[type="submit"] { width: 100%; height: 48px; margin-top: 16px; border: 0; border-radius: 11px; background: #218653; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+    .error { margin: 14px 0 0; color: #b42318; font-size: 14px; min-height: 20px; }
     .foot { margin-top: 22px; font-size: 12px; text-align: center; }
   </style>
 </head>
@@ -60,11 +63,57 @@ function gatePage(returnTo: string, message = ""): Response {
     <form method="post" action="${UNLOCK_PATH}">
       <input type="hidden" name="returnTo" value="${safeReturnTo}">
       <label for="site-password">Senha de acesso</label>
-      <input id="site-password" name="password" type="password" required maxlength="1024" autocomplete="current-password" autofocus>
+      <div class="password-wrap">
+        <input id="site-password" name="password" type="password" required maxlength="1024" autocomplete="current-password" autofocus>
+        <button class="toggle" id="toggle-password" type="button" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button>
+      </div>
       <button type="submit">Entrar no site</button>
-      ${safeMessage ? `<p class="error" role="alert">${safeMessage}</p>` : ""}
+      <p class="error" id="gate-error" role="alert" aria-live="polite">${safeMessage}</p>
     </form>
     <p class="foot">A autorização fica salva neste navegador por 30 dias.</p>
+    <script>
+      const form = document.querySelector("form");
+      const password = document.getElementById("site-password");
+      const toggle = document.getElementById("toggle-password");
+      const error = document.getElementById("gate-error");
+      toggle.addEventListener("click", () => {
+        const showing = password.type === "password";
+        password.type = showing ? "text" : "password";
+        toggle.textContent = showing ? "Ocultar" : "Mostrar";
+        toggle.setAttribute("aria-label", showing ? "Ocultar senha" : "Mostrar senha");
+        toggle.setAttribute("aria-pressed", String(showing));
+        password.focus();
+      });
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        error.textContent = "";
+        const submit = form.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        try {
+          const response = await fetch(form.action, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json" },
+            body: new URLSearchParams(new FormData(form)).toString(),
+            credentials: "same-origin"
+          });
+          if (response.ok && response.redirected) {
+            window.location.assign(response.url);
+            return;
+          }
+          if (response.status === 303) {
+            window.location.assign(form.querySelector('input[name="returnTo"]').value || "/");
+            return;
+          }
+          error.textContent = "Falhou. Tente novamente.";
+          password.focus();
+          password.select();
+        } catch {
+          error.textContent = "Falhou. Tente novamente.";
+        } finally {
+          submit.disabled = false;
+        }
+      });
+    </script>
   </main>
 </body>
 </html>`;
@@ -78,7 +127,7 @@ function gatePage(returnTo: string, message = ""): Response {
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
       "Content-Security-Policy":
-        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
+        "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'",
     },
   });
 }
@@ -216,7 +265,13 @@ export default async function middleware(request: Request): Promise<Response | u
     );
 
     if (!senhaInformada || senhaInformada.length > 1024 || !compararConstante(senhaRecebida, senhaEsperada)) {
-      return gatePage(returnTo, "Senha incorreta. Confira e tente novamente.");
+      if ((request.headers.get("accept") ?? "").includes("application/json")) {
+        return new Response(JSON.stringify({ ok: false }), {
+          status: 401,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+        });
+      }
+      return gatePage(returnTo, "Falhou. Tente novamente.");
     }
 
     const expiraEm = Math.floor(Date.now() / 1000) + SESSION_SECONDS;
