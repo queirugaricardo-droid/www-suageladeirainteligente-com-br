@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import {
   ArrowRight,
   Bot,
@@ -23,6 +23,7 @@ import { RevisaoTab } from "@/components/geladeira/revisao-tab";
 import { CatalogoTab } from "@/components/geladeira/catalogo-tab";
 import { HistoricoTab } from "@/components/geladeira/historico-tab";
 import { useFoodData } from "@/lib/use-food-data";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGeladeira } from "@/lib/use-geladeira";
 import { gerarRelatorio } from "@/lib/fridge-logic";
@@ -30,6 +31,16 @@ import type { ItemDetectado } from "@/lib/fridge-types";
 import fridgeHero from "@/assets/fridge-hero.jpg";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
+  beforeLoad: async () => {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw redirect({ to: "/auth" });
+
+    // Fail closed: login alone never grants access; an approved, confirmed,
+    // unexpired 30-day payment is required by the database function.
+    const { data: acessoAtivo, error: acessoError } = await supabase.rpc("tem_acesso_pago");
+    if (acessoError || !acessoAtivo) throw redirect({ to: "/oferta" });
+  },
   head: () => ({
     meta: [
       { title: "Geladeira Inteligente | Lista de compras por foto" },
