@@ -3,6 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ACCESS_COOKIE = "gi_site_access";
 const ACCESS_MAX_AGE = 60 * 60 * 24 * 30;
@@ -158,6 +159,6 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [attachSupabaseAuth],
+  functionMiddleware: [attachSupabaseAuth, requireSupabaseAuth],
   requestMiddleware: [siteAccessMiddleware, errorMiddleware, csrfMiddleware],
 }));
