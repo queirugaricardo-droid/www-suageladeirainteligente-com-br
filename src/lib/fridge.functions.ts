@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { imagensAnaliseSchema } from "./plano";
 import { chaveGemini } from "./deploy-config";
 import { CATEGORIAS_DETECCAO, type CategoriaDeteccao } from "./fridge-types";
@@ -38,7 +37,6 @@ const respostaGeminiSchema = z.object({
 
 export const analisarFoto = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => imagensAnaliseSchema.parse(input))
-  .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     try {
       const sb = context.supabase as unknown as ClienteSb;
