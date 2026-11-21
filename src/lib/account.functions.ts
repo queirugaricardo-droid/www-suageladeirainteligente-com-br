@@ -1,14 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-export const consultarConta = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+export const consultarConta = createServerFn({ method: "GET" }).handler(async ({ context }) => {
   const perfil = await context.supabase.from("profiles").select("nome_completo, termos_aceitos_em, termos_versao").eq("id", context.userId).single();
   if (perfil.error) throw new Error("Não foi possível carregar sua conta.");
   return { perfil: perfil.data };
 });
-export const aceitarTermos = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((value: unknown) => z.object({ nome: z.string().trim().min(3).max(120), aceito: z.literal(true) }).parse(value))
+export const aceitarTermos = createServerFn({ method: "POST" }).inputValidator((value: unknown) => z.object({ nome: z.string().trim().min(3).max(120), aceito: z.literal(true) }).parse(value))
   .handler(async ({ context, data }) => {
     const { error } = await context.supabase.rpc("aceitar_termos_conta", { p_nome: data.nome, p_aceito: data.aceito });
     if (error) throw new Error("Não foi possível salvar seu perfil.");
