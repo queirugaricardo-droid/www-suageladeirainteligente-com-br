@@ -37,58 +37,64 @@ export type Database = {
       }
       assinaturas: {
         Row: {
-          acesso_fim: string | null
-          acesso_inicio: string | null
+          acesso_fim: string
+          acesso_inicio: string
           ambiente: string | null
           cancelar_no_fim: boolean
           created_at: string
+          email_compra: string
+          email_confirmado_em: string | null
           id: string
-          pagamento_verificado_em: string | null
+          pagamento_verificado_em: string
           plano: string
-          provedor: string | null
+          provedor: string
           provedor_assinatura_id: string | null
           provedor_cliente_id: string | null
           renovacao_em: string | null
           status: string
-          transacao_id: string | null
+          transacao_id: string
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
-          acesso_fim?: string | null
-          acesso_inicio?: string | null
+          acesso_fim: string
+          acesso_inicio: string
           ambiente?: string | null
           cancelar_no_fim?: boolean
           created_at?: string
+          email_compra: string
+          email_confirmado_em?: string | null
           id?: string
-          pagamento_verificado_em?: string | null
+          pagamento_verificado_em: string
           plano?: string
-          provedor?: string | null
+          provedor?: string
           provedor_assinatura_id?: string | null
           provedor_cliente_id?: string | null
           renovacao_em?: string | null
           status?: string
-          transacao_id?: string | null
+          transacao_id: string
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
-          acesso_fim?: string | null
-          acesso_inicio?: string | null
+          acesso_fim?: string
+          acesso_inicio?: string
           ambiente?: string | null
           cancelar_no_fim?: boolean
           created_at?: string
+          email_compra?: string
+          email_confirmado_em?: string | null
           id?: string
-          pagamento_verificado_em?: string | null
+          pagamento_verificado_em?: string
           plano?: string
-          provedor?: string | null
+          provedor?: string
           provedor_assinatura_id?: string | null
           provedor_cliente_id?: string | null
           renovacao_em?: string | null
           status?: string
-          transacao_id?: string | null
+          transacao_id?: string
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
